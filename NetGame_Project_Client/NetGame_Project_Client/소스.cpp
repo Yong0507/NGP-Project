@@ -91,16 +91,26 @@ struct KEY {
 #pragma pack(pop)
 
 #pragma pack(push,1)
+// 총알의 정보입니다.
+struct HeroBullet {
+    bool isFire; // 총알을 발사했습니까?
+    short x, y;
+};
+#pragma pack(pop)
+
+#pragma pack(push,1)
 struct CHero {
     short x, y;
     bool connect;
     short id;
     RECT rc;
     bool IsShoot;
+    HeroBullet BulletArr[10];
 };
 #pragma pack(pop)
 
 CHero hero[2];
+HeroBullet hbullet[2];
 
 static KEY keyInfo{ KEY_NULL };    // 입력된 키 정보 구조체
 static bool SockConnect = false;
@@ -109,6 +119,7 @@ CImage imgBackGround;
 CImage imgBackBuff;
 CImage heroimg;
 CImage heroimg2;
+CImage HBullet[10];
 
 static char messageBuffer[BUFSIZE];
 
@@ -152,6 +163,9 @@ void ImgLoad() {
     heroimg.Load(TEXT("hero.png"));
     heroimg2.Load(TEXT("hero2.png"));
 
+    for (int i = 0; i < 10; ++i) {
+        HBullet[i].Load(TEXT("bullet.png"));
+    }
 }
 
 void OnDraw(HWND hWnd)
@@ -179,18 +193,33 @@ void OnDraw(HWND hWnd)
                 if (keyInfo.id == i)
                 {
                     heroimg.Draw(memDC, hero[i].x, 460, 90, 90);
+                    // 총알
+                    for (int j = 0; j < 10; j++)
+                    {
+                        if (hero[i].BulletArr[j].isFire == true)
+                        {
+                            HBullet[j].Draw(memDC, hero[i].BulletArr[j].x + 15, hero[i].BulletArr[j].y, 64, 64);
+                        }
+                    }
                 }
 
                 else
                 {
                     heroimg2.Draw(memDC, hero[i].x, 460, 90, 90);
+                    // 총알
+                    for (int j = 0; j < 10; j++)
+                    {
+                        if (hero[i].BulletArr[j].isFire == true)
+                        {
+                            HBullet[j].Draw(memDC, hero[i].BulletArr[j].x + 15, hero[i].BulletArr[j].y, 64, 64);
+                        }
+                    }
                 }
             }
         }
     }
 
     InvalidateRect(hWnd, NULL, FALSE);
-
 
     SetBkMode(memDC, TRANSPARENT);
 
@@ -225,9 +254,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 #pragma region PAINT
     case WM_PAINT:
         OnDraw(hWnd);
-        InvalidateRect(hWnd, NULL, FALSE);
-
         break;
+
 #pragma endregion
 
 #pragma region 타이머
@@ -255,12 +283,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         if (wParam == VK_RIGHT)
         {
             keyInfo.cKey = 1;
-            //send(sock, (char*)&keyInfo, sizeof(KEY), 0);
         }
         else if (wParam == VK_LEFT)
         {
             keyInfo.cKey = 2;
-            //send(sock, (char*)&keyInfo, sizeof(KEY), 0);
         }
         else if (wParam == VK_SPACE)
         {

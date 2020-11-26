@@ -72,14 +72,24 @@ struct KEY {
 #pragma pack(pop)
 
 #pragma pack(push,1)
+// 총알의 정보입니다.
+struct Bullet {
+    bool isFire; // 총알을 발사했습니까?
+    short x, y;
+};
+#pragma pack(pop)
+
+#pragma pack(push,1)
 struct CHero {
     short x, y;
     bool connect;
     short id;
     RECT rc;
     bool IsShoot;
+    Bullet BulletArr[10];
 };
 #pragma pack(pop)
+
 
 
 #pragma region 오류 출력 부분
@@ -139,9 +149,9 @@ void KeyMessage(const char* key, CHero& hero)
 int main(int argc, char* argv[])
 {
     // 이벤트 생성
-    hReadEvent = CreateEvent(NULL, FALSE, TRUE, NULL);
+    hReadEvent = CreateEvent(NULL, TRUE, TRUE, NULL);
     if (hReadEvent == NULL) return 1;
-    hOperEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+    hOperEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (hOperEvent == NULL) return 1;
 
     int retval;
@@ -224,8 +234,8 @@ int main(int argc, char* argv[])
     WSACleanup();
     return 0;
 }
-short a{};
-short b{};
+short Key_Inform{};
+short Client_ID{};
 
 DWORD WINAPI Client_Thread(LPVOID arg)
 {
@@ -239,6 +249,7 @@ DWORD WINAPI Client_Thread(LPVOID arg)
     unsigned int n = 0;
 
     while (1) {
+        WaitForSingleObject(hReadEvent, INFINITE);
 
         // 1초에 30번씩 전송한다.
         if (timer > (1.f / 30.f) * n)
@@ -249,25 +260,18 @@ DWORD WINAPI Client_Thread(LPVOID arg)
 
             recvn(clientSock, (char*)&keyInfo, sizeof(KEY), 0);
 
-            a = keyInfo.cKey;
-            b = keyInfo.id;
+            Key_Inform = keyInfo.cKey;
+            Client_ID = keyInfo.id;
 
-            if (a == 1 && b == 0)
-            {
-                hero[0].x += 5;
-            }
-
-
-            cout << "cKey : " << a << endl;
-            cout << "id : " << b << endl;
-
-
+            ResetEvent(hReadEvent);
+            SetEvent(hOperEvent);
+            //cout << "한번만 실행?" << endl;
             //KeyMessage(&keyInfo.cKey, hero[keyInfo.id]);
 
             send(clientSock, (char*)&hero, sizeof(hero), 0);
             n++;
         }
-
+        //SetEvent(hOperEvent);
     }
 
     closesocket(clientSock);//소켓을 종료한다.
@@ -276,14 +280,87 @@ DWORD WINAPI Client_Thread(LPVOID arg)
 
 DWORD WINAPI Operation_Thread(LPVOID arg)
 {
-    SOCKET clientSock = *((SOCKET*)arg); //매개변수로받은 클라이언트 소켓을 전달
-    WaitForSingleObject(hOperEvent, INFINITE);
+    int bulletTimer{};
 
-    //KeyMessage(&keyInfo.cKey, hero[keyInfo.id]);
+    int time[2];
+    int delete_Time[2][10];
+    for (int i = 0; i < 2; i++)
+    {
+        time[i] = 0;
 
-    send(clientSock, (char*)&hero, sizeof(hero), 0);
+        for (int j = 0; j < 10; j++)
+        {
+            delete_Time[i][j] = 0;
+        }
+    }
 
-    SetEvent(hReadEvent);
+    while (true) {
+        WaitForSingleObject(hOperEvent, INFINITE);
+
+        for (int i = 0; i < MAX_CLNT; i++) {
+            if (Client_ID == i)               // ID 구분
+            {
+                if (Key_Inform == 1)          // 오른 키
+                {
+                    hero[i].x += 5;
+                }
+                if (Key_Inform == 2)     // 왼쪽 키
+                {
+                    hero[i].x -= 5;
+                }
+                if (Key_Inform == 3)     // 스페이스 키
+                {
+                    if (time[i] < 5)
+                    {
+                        time[i]++;
+                    }
+
+                    for (int j = 0; j < 10; j++)
+                    {
+                        if (hero[i].BulletArr[j].isFire == false)
+                        {
+                            hero[i].BulletArr[j].isFire = true;
+                            hero[i].BulletArr[j].x = hero[i].x;
+                            hero[i].BulletArr[j].y = hero[i].y;
+
+                            break;
+                        }
+                    }
+                    time[i] = 0;
+                }
+                else
+                {
+                    time[i] = 0;
+
+                }
+
+                for (int j = 0; j < 10; j++)
+                {
+                    if (hero[i].BulletArr[j].isFire == true)
+                    {
+                        hero[i].BulletArr[j].y -= 30;
+                        if (hero[i].BulletArr[j].y < -50) {
+                            hero[i].BulletArr[j].y = -50;
+                        }
+                        delete_Time[i][j]++;
+                    }
+
+                    if (delete_Time[i][j] > 30)
+                    {
+                        hero[i].BulletArr[i].isFire = false;
+                        delete_Time[i][j] = 0;
+                    }
+                }
+            }
+        }
+
+
+
+        //cout << "operation 이후에 send 진행?" << endl;
+
+        ResetEvent(hOperEvent);
+        SetEvent(hReadEvent);
+    }
     return 0;
 }
 
