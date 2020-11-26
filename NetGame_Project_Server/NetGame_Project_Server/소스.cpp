@@ -66,7 +66,7 @@ CStopwatch stopwatch;
 
 #pragma pack(push,1)
 struct KEY {
-    char cKey;
+    short cKey;
     short id;
 };
 #pragma pack(pop)
@@ -224,6 +224,8 @@ int main(int argc, char* argv[])
     WSACleanup();
     return 0;
 }
+short a{};
+short b{};
 
 DWORD WINAPI Client_Thread(LPVOID arg)
 {
@@ -241,13 +243,26 @@ DWORD WINAPI Client_Thread(LPVOID arg)
         // 1초에 30번씩 전송한다.
         if (timer > (1.f / 30.f) * n)
         {
-            cout << timer << endl;
+            //cout << timer << endl;
             // timer 전송
             send(clientSock, (char*)&timer, sizeof(timer), 0);
 
             recvn(clientSock, (char*)&keyInfo, sizeof(KEY), 0);
-            
-            KeyMessage(&keyInfo.cKey, hero[keyInfo.id]);
+
+            a = keyInfo.cKey;
+            b = keyInfo.id;
+
+            if (a == 1 && b == 0)
+            {
+                hero[0].x += 5;
+            }
+
+
+            cout << "cKey : " << a << endl;
+            cout << "id : " << b << endl;
+
+
+            //KeyMessage(&keyInfo.cKey, hero[keyInfo.id]);
 
             send(clientSock, (char*)&hero, sizeof(hero), 0);
             n++;
@@ -264,7 +279,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
     SOCKET clientSock = *((SOCKET*)arg); //매개변수로받은 클라이언트 소켓을 전달
     WaitForSingleObject(hOperEvent, INFINITE);
 
-    KeyMessage(&keyInfo.cKey, hero[keyInfo.id]);
+    //KeyMessage(&keyInfo.cKey, hero[keyInfo.id]);
 
     send(clientSock, (char*)&hero, sizeof(hero), 0);
 

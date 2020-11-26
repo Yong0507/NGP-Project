@@ -85,7 +85,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 
 #pragma pack(push,1)
 struct KEY {
-    char cKey;
+    short cKey;
     short id;
 };
 #pragma pack(pop)
@@ -238,33 +238,33 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 #pragma endregion
 
 #pragma region 키입력
-        case WM_KEYUP:
-            if (wParam == VK_RIGHT) {
-                keyInfo.cKey = KEY_NULL;
-            }
-            else if (wParam == VK_LEFT) {
-                keyInfo.cKey = KEY_NULL;
-            }
-            else if (wParam == VK_SPACE) {
-                keyInfo.cKey = KEY_SPACE_NULL;
-            }
-            break;
+    case WM_KEYUP:
+        if (wParam == VK_RIGHT) {
+            keyInfo.cKey = 4;
+        }
+        else if (wParam == VK_LEFT) {
+            keyInfo.cKey = 4;
+        }
+        else if (wParam == VK_SPACE) {
+            keyInfo.cKey = 5;
+        }
+        break;
 
     case WM_KEYDOWN:
 
         if (wParam == VK_RIGHT)
         {
-            keyInfo.cKey = KEY_RIGHT;
+            keyInfo.cKey = 1;
             //send(sock, (char*)&keyInfo, sizeof(KEY), 0);
         }
         else if (wParam == VK_LEFT)
         {
-            keyInfo.cKey = KEY_LEFT;
+            keyInfo.cKey = 2;
             //send(sock, (char*)&keyInfo, sizeof(KEY), 0);
         }
         else if (wParam == VK_SPACE)
         {
-            keyInfo.cKey = KEY_SPACE;
+            keyInfo.cKey = 3;
         }
 
         InvalidateRect(hWnd, NULL, FALSE); // FALSE로 하면 이어짐  
