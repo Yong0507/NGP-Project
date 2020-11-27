@@ -66,7 +66,7 @@ CStopwatch stopwatch;
 
 #pragma pack(push,1)
 struct KEY {
-    short cKey;
+    bool up, left, right, down, space;
     short id;
 };
 #pragma pack(pop)
@@ -124,27 +124,20 @@ int clientCount = -1;
 SOCKET clientSocks[MAX_CLNT];//클라이언트 소켓 보관용 배열
 
 HANDLE hReadEvent, hOperEvent;
-KEY keyInfo{ KEY_NULL };
+KEY keyInfo;
 CHero hero[2];
 char buf[BUFSIZE];
 HANDLE hThread;
 HANDLE hThread2;
 HANDLE hTimer;
 
-void KeyMessage(const char* key, CHero& hero)
-{
-    if (KEY_RIGHT == *key)
-    {
-        cout << hero.x << endl;
-        hero.x += 5;
-    }
-    else if (KEY_LEFT == *key)
-    {
-        cout << hero.x << endl;
-        hero.x -= 5;
-    }
+bool leftMove;
+bool rightMove;
+bool upMove;
+bool downMove;
+bool attackState;
 
-}
+CRITICAL_SECTION cs; // 임계영역 변수
 
 int main(int argc, char* argv[])
 {
@@ -185,6 +178,9 @@ int main(int argc, char* argv[])
     // 서버 대기 상태 완료 -----------------------------------------
     printf("서버 대기 상태 완료\n");
 
+    // 임계영역 변수 선언
+    InitializeCriticalSection(&cs);
+
 
     // 데이터 통신에 사용할 변수
     SOCKET client_sock;
@@ -206,15 +202,11 @@ int main(int argc, char* argv[])
             err_display("accept()");
         }
 
-        // 즉시전송 (Nagle 알고리즘 해제)
-//	int opt_val = TRUE; // FALSE : Nagle 알고리즘 설정
-//	setsockopt(client_sock, IPPROTO_TCP, TCP_NODELAY, (char*)&opt_val, sizeof(opt_val));
-
         clientCount++;
         clientSocks[clientCount] = client_sock;
         //hero[clientCount].connect = true;
         //hero[clientCount].id = clientCount;
-        hero[clientCount] = CHero{ 0,400,true,(short)clientCount,NULL,false };
+        hero[clientCount] = CHero{ 0,460,true,(short)clientCount,NULL,false };
         hero[clientCount].id = clientCount;
 
         cout << "접속한 클라 개수 : " << clientCount << endl;
@@ -227,6 +219,9 @@ int main(int argc, char* argv[])
         hThread2 = CreateThread(NULL, 0, Operation_Thread, (LPVOID)&client_sock, 0, NULL);
     }
 
+    // 임계역역 삭제
+    DeleteCriticalSection(&cs);
+
     // closesocket()
     closesocket(listen_sock);
 
@@ -234,7 +229,6 @@ int main(int argc, char* argv[])
     WSACleanup();
     return 0;
 }
-short Key_Inform{};
 short Client_ID{};
 
 DWORD WINAPI Client_Thread(LPVOID arg)
@@ -258,10 +252,16 @@ DWORD WINAPI Client_Thread(LPVOID arg)
             // timer 전송
             send(clientSock, (char*)&timer, sizeof(timer), 0);
 
-            recvn(clientSock, (char*)&keyInfo, sizeof(KEY), 0);
+            recvn(clientSock, (char*)&keyInfo, sizeof(keyInfo), 0);
 
-            Key_Inform = keyInfo.cKey;
+            EnterCriticalSection(&cs);
             Client_ID = keyInfo.id;
+            leftMove = keyInfo.left;
+            rightMove = keyInfo.right;
+            upMove = keyInfo.up;
+            downMove = keyInfo.down;
+            attackState = keyInfo.space;
+            LeaveCriticalSection(&cs);
 
             ResetEvent(hReadEvent);
             SetEvent(hOperEvent);
@@ -300,15 +300,21 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
         for (int i = 0; i < MAX_CLNT; i++) {
             if (Client_ID == i)               // ID 구분
             {
-                if (Key_Inform == 1)          // 오른 키
+                if (rightMove == true)          // 오른 키
                 {
                     hero[i].x += 5;
                 }
-                if (Key_Inform == 2)     // 왼쪽 키
+                if (leftMove == true)     // 왼쪽 키
                 {
                     hero[i].x -= 5;
                 }
-                if (Key_Inform == 3)     // 스페이스 키
+                if (upMove == true) {
+                    hero[i].y -= 5;
+                }
+                if (downMove == true) {
+                    hero[i].y += 5;
+                }
+                if (attackState == true)     // 스페이스 키
                 {
                     if (time[i] < 5)
                     {
@@ -338,9 +344,10 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
                 {
                     if (hero[i].BulletArr[j].isFire == true)
                     {
-                        hero[i].BulletArr[j].y -= 30;
-                        if (hero[i].BulletArr[j].y < -50) {
-                            hero[i].BulletArr[j].y = -50;
+                        hero[i].BulletArr[j].y -= 10;
+                        if (hero[i].BulletArr[j].y < -64) {
+                            hero[i].BulletArr[j].isFire = false;
+                            hero[i].BulletArr[j].y = 600;
                         }
                         delete_Time[i][j]++;
                     }
@@ -353,10 +360,6 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
                 }
             }
         }
-
-
-
-        //cout << "operation 이후에 send 진행?" << endl;
 
         ResetEvent(hOperEvent);
         SetEvent(hReadEvent);
@@ -388,7 +391,7 @@ int recvn(SOCKET s, char* buf, int len, int flags)
 DWORD WINAPI Timer_Thread(LPVOID arg)
 {
     int retval;
-
+    WaitForSingleObject(hReadEvent, INFINITE);
 
     __int64 past_time = -1;
     while (1) {

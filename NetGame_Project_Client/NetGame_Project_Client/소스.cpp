@@ -85,7 +85,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 
 #pragma pack(push,1)
 struct KEY {
-    short cKey;
+    bool up, left, right, down, space;
     short id;
 };
 #pragma pack(pop)
@@ -100,7 +100,8 @@ struct HeroBullet {
 
 #pragma pack(push,1)
 struct CHero {
-    short x, y;
+    short x;
+    short y;
     bool connect;
     short id;
     RECT rc;
@@ -112,7 +113,7 @@ struct CHero {
 CHero hero[2];
 HeroBullet hbullet[2];
 
-static KEY keyInfo{ KEY_NULL };    // 입력된 키 정보 구조체
+static KEY keyInfo;    // 입력된 키 정보 구조체
 static bool SockConnect = false;
 static bool MyRect = false;
 CImage imgBackGround;
@@ -192,7 +193,7 @@ void OnDraw(HWND hWnd)
             {
                 if (keyInfo.id == i)
                 {
-                    heroimg.Draw(memDC, hero[i].x, 460, 90, 90);
+                    heroimg.Draw(memDC, hero[i].x, hero[i].y, 90, 90);
                     // 총알
                     for (int j = 0; j < 10; j++)
                     {
@@ -205,7 +206,7 @@ void OnDraw(HWND hWnd)
 
                 else
                 {
-                    heroimg2.Draw(memDC, hero[i].x, 460, 90, 90);
+                    heroimg2.Draw(memDC, hero[i].x, hero[i].y, 90, 90);
                     // 총알
                     for (int j = 0; j < 10; j++)
                     {
@@ -268,13 +269,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 #pragma region 키입력
     case WM_KEYUP:
         if (wParam == VK_RIGHT) {
-            keyInfo.cKey = 4;
+            keyInfo.right = false;
         }
         else if (wParam == VK_LEFT) {
-            keyInfo.cKey = 4;
+            keyInfo.left = false;
         }
         else if (wParam == VK_SPACE) {
-            keyInfo.cKey = 5;
+            keyInfo.space = false;
+        }
+        else if (wParam == VK_UP) {
+            keyInfo.up = false;
+        }
+        else if (wParam == VK_DOWN) {
+            keyInfo.down = false;
         }
         break;
 
@@ -282,15 +289,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
         if (wParam == VK_RIGHT)
         {
-            keyInfo.cKey = 1;
+            keyInfo.right = true;
         }
         else if (wParam == VK_LEFT)
         {
-            keyInfo.cKey = 2;
+            keyInfo.left = true;
         }
         else if (wParam == VK_SPACE)
         {
-            keyInfo.cKey = 3;
+            keyInfo.space = true;
+        }
+        else if (wParam == VK_UP) {
+            keyInfo.up = true;
+        }
+        else if (wParam == VK_DOWN) {
+            keyInfo.down = true;
         }
 
         InvalidateRect(hWnd, NULL, FALSE); // FALSE로 하면 이어짐  
@@ -344,7 +357,7 @@ DWORD WINAPI Server_Thread(LPVOID arg)
     while (1) {
         recvn(sock, (char*)&timer, sizeof(timer), 0);
 
-        send(sock, (char*)&keyInfo, sizeof(KEY), 0);
+        send(sock, (char*)&keyInfo, sizeof(keyInfo), 0);
 
         recvn(sock, (char*)&hero, sizeof(hero), 0);
     }
