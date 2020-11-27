@@ -22,47 +22,8 @@ using namespace std;
 #define MAX_CLNT 2
 DWORD WINAPI Client_Thread(LPVOID arg);
 DWORD WINAPI Operation_Thread(LPVOID arg);
-DWORD WINAPI Timer_Thread(LPVOID arg);
 int recvn(SOCKET s, char* buf, int len, int flags);
 
-class CStopwatch
-{
-public:
-    CStopwatch();
-    ~CStopwatch();
-
-    void Start();
-
-    __int64 Now() const;
-
-    __int64 NowInMicro() const;
-
-private:
-    LARGE_INTEGER m_liPerfFreq;
-    LARGE_INTEGER m_liPerfStart;
-};
-
-CStopwatch::CStopwatch() { QueryPerformanceFrequency(&m_liPerfFreq); Start(); }
-CStopwatch::~CStopwatch() {};
-
-void CStopwatch::Start() { QueryPerformanceCounter(&m_liPerfStart); }
-
-__int64 CStopwatch::Now() const {
-    LARGE_INTEGER liPerfNow;
-    QueryPerformanceCounter(&liPerfNow);
-    return (((liPerfNow.QuadPart - m_liPerfStart.QuadPart) * 1000)
-        / m_liPerfFreq.QuadPart);
-}
-
-__int64 CStopwatch::NowInMicro() const {
-    LARGE_INTEGER liPerfNow;
-    QueryPerformanceCounter(&liPerfNow);
-    return (((liPerfNow.QuadPart - m_liPerfStart.QuadPart) * 100000)
-        / m_liPerfFreq.QuadPart);
-}
-
-float timer = 0.f;              // 시간
-CStopwatch stopwatch;
 
 #pragma pack(push,1)
 struct KEY {
@@ -129,7 +90,7 @@ CHero hero[2];
 char buf[BUFSIZE];
 HANDLE hThread;
 HANDLE hThread2;
-HANDLE hTimer;
+
 
 bool leftMove;
 bool rightMove;
@@ -187,13 +148,6 @@ int main(int argc, char* argv[])
     SOCKADDR_IN clientaddr;
     int addrlen;
 
-    // Timer 쓰레드 생성
-    hTimer = CreateThread(NULL, 0, Timer_Thread, 0, 0, NULL);
-    if (hTimer != NULL)
-    {
-        CloseHandle(hTimer);
-    }
-
     while (1) {
         //accept()
         addrlen = sizeof(clientaddr);
@@ -214,7 +168,7 @@ int main(int argc, char* argv[])
 
         hThread = CreateThread(NULL, 0, Client_Thread, (LPVOID)&client_sock, 0, NULL);//HandleClient 쓰레드 실행, clientSock을 매개변수로 전달
         printf("Connected Client IP : %s\n", inet_ntoa(clientaddr.sin_addr));
-        timer = 0.f;
+
 
         hThread2 = CreateThread(NULL, 0, Operation_Thread, (LPVOID)&client_sock, 0, NULL);
     }
@@ -244,33 +198,24 @@ DWORD WINAPI Client_Thread(LPVOID arg)
 
     while (1) {
         WaitForSingleObject(hReadEvent, INFINITE);
+        recvn(clientSock, (char*)&keyInfo, sizeof(keyInfo), 0);
+        EnterCriticalSection(&cs);
+        Client_ID = keyInfo.id;
+        leftMove = keyInfo.left;
+        rightMove = keyInfo.right;
+        upMove = keyInfo.up;
+        downMove = keyInfo.down;
+        attackState = keyInfo.space;
+        LeaveCriticalSection(&cs);
 
-        // 1초에 30번씩 전송한다.
-        if (timer > (1.f / 30.f) * n)
-        {
-            //cout << timer << endl;
-            // timer 전송
-            send(clientSock, (char*)&timer, sizeof(timer), 0);
+        ResetEvent(hReadEvent);
+        SetEvent(hOperEvent);
+        //cout << "한번만 실행?" << endl;
+        //KeyMessage(&keyInfo.cKey, hero[keyInfo.id]);
 
-            recvn(clientSock, (char*)&keyInfo, sizeof(keyInfo), 0);
+        send(clientSock, (char*)&hero, sizeof(hero), 0);
 
-            EnterCriticalSection(&cs);
-            Client_ID = keyInfo.id;
-            leftMove = keyInfo.left;
-            rightMove = keyInfo.right;
-            upMove = keyInfo.up;
-            downMove = keyInfo.down;
-            attackState = keyInfo.space;
-            LeaveCriticalSection(&cs);
 
-            ResetEvent(hReadEvent);
-            SetEvent(hOperEvent);
-            //cout << "한번만 실행?" << endl;
-            //KeyMessage(&keyInfo.cKey, hero[keyInfo.id]);
-
-            send(clientSock, (char*)&hero, sizeof(hero), 0);
-            n++;
-        }
         //SetEvent(hOperEvent);
     }
 
@@ -302,17 +247,17 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
             {
                 if (rightMove == true)          // 오른 키
                 {
-                    hero[i].x += 5;
+                    hero[i].x += 1;
                 }
                 if (leftMove == true)     // 왼쪽 키
                 {
-                    hero[i].x -= 5;
+                    hero[i].x -= 1;
                 }
                 if (upMove == true) {
-                    hero[i].y -= 5;
+                    hero[i].y -= 1;
                 }
                 if (downMove == true) {
-                    hero[i].y += 5;
+                    hero[i].y += 1;
                 }
                 if (attackState == true)     // 스페이스 키
                 {
@@ -344,7 +289,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
                 {
                     if (hero[i].BulletArr[j].isFire == true)
                     {
-                        hero[i].BulletArr[j].y -= 10;
+                        hero[i].BulletArr[j].y -= 1;
                         if (hero[i].BulletArr[j].y < -64) {
                             hero[i].BulletArr[j].isFire = false;
                             hero[i].BulletArr[j].y = 600;
@@ -360,6 +305,8 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
                 }
             }
         }
+
+        //cout << "operation 이후에 send 진행?" << endl;
 
         ResetEvent(hOperEvent);
         SetEvent(hReadEvent);
@@ -385,30 +332,4 @@ int recvn(SOCKET s, char* buf, int len, int flags)
         ptr += received;
     }
     return (len - left);
-}
-
-// Timer 변경 쓰레드
-DWORD WINAPI Timer_Thread(LPVOID arg)
-{
-    int retval;
-    WaitForSingleObject(hReadEvent, INFINITE);
-
-    __int64 past_time = -1;
-    while (1) {
-        // 시간 측정 함수
-        if (past_time == -1) {
-            past_time = stopwatch.Now();
-        }
-
-        __int64 now_time = stopwatch.Now();
-
-        __int64 ElapsedTime = now_time - past_time;
-
-
-        past_time = now_time;
-
-        float etime = float(ElapsedTime) / 1000.f;
-        timer += etime;
-    }
-    return 0;
 }
