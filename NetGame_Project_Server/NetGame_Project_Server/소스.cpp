@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include<iostream>
 #include <process.h>
+#include <time.h>
 #include<thread>
 using namespace std;
 
@@ -23,6 +24,8 @@ using namespace std;
 DWORD WINAPI Client_Thread(LPVOID arg);
 DWORD WINAPI Operation_Thread(LPVOID arg);
 int recvn(SOCKET s, char* buf, int len, int flags);
+
+int MonsterSpawnTick = 110;
 
 
 #pragma pack(push,1)
@@ -51,6 +54,13 @@ struct CHero {
 };
 #pragma pack(pop)
 
+#pragma pack(push,1)
+struct Monster {
+    float x, y;
+    short size;
+    bool isActivated;
+};
+#pragma pack(pop)
 
 
 #pragma region 오류 출력 부분
@@ -90,6 +100,7 @@ CHero hero[2];
 char buf[BUFSIZE];
 HANDLE hThread;
 HANDLE hThread2;
+Monster monsters[5];
 
 
 bool leftMove;
@@ -99,6 +110,51 @@ bool downMove;
 bool attackState;
 
 CRITICAL_SECTION cs; // 임계영역 변수
+
+void MonsterSpawn(int type) {
+    switch (type) {
+    case 1:
+        monsters[0].x = 14.f;
+        monsters[0].y = 0.f;
+        monsters[1].x = 88.f;
+        monsters[1].y = 0.f;
+        monsters[2].x = 162.f;
+        monsters[2].y = 0.f;
+        monsters[3].x = 236.f;
+        monsters[3].y = 0.f;
+        monsters[4].x = 310.f;
+        monsters[4].y = 0.f;
+        break;
+    case 2:
+        monsters[0].x = 14.f;
+        monsters[0].y = -30.f;
+        monsters[1].x = 88.f;
+        monsters[1].y = 0.f;
+        monsters[2].x = 162.f;
+        monsters[2].y = -30.f;
+        monsters[3].x = 236.f;
+        monsters[3].y = 0.f;
+        monsters[4].x = 310.f;
+        monsters[4].y = -30.f;
+        break;
+    case 3:
+        monsters[0].x = 162.f;
+        monsters[0].y = 0.f;
+        monsters[1].x = 162.f;
+        monsters[1].y = -70.f;
+        monsters[2].x = 162.f;
+        monsters[2].y = -140.f;
+        monsters[3].x = 162.f;
+        monsters[3].y = -210.f;
+        monsters[4].x = 162.f;
+        monsters[4].y = -280.f;
+
+        break;
+    }
+    for (int i = 0; i < 5; ++i) {
+        monsters[i].isActivated = true;
+    }
+}
 
 int main(int argc, char* argv[])
 {
@@ -163,6 +219,12 @@ int main(int argc, char* argv[])
         hero[clientCount] = CHero{ 0,460,true,(short)clientCount,NULL,false };
         hero[clientCount].id = clientCount;
 
+
+        for (int i = 0; i < 5; i++) {
+            monsters[i] = Monster{ 600.f ,600.f, 60 };
+        }
+
+
         cout << "접속한 클라 개수 : " << clientCount << endl;
         cout << "hero [" << clientCount << "].id : " << hero[clientCount].id << endl;
 
@@ -192,13 +254,18 @@ DWORD WINAPI Client_Thread(LPVOID arg)
     int retval;
     int i = 0;
     // hero.id 송신
-    send(clientSocks[clientCount], (char*)&hero[clientCount], sizeof(CHero), 0);
-
+    send(clientSock, (char*)&hero[clientCount], sizeof(CHero), 0);
+    // 처음 몬스터 초기값 송신
+    send(clientSock, (char*)&monsters, sizeof(monsters), 0);
     unsigned int n = 0;
 
     while (1) {
         WaitForSingleObject(hReadEvent, INFINITE);
+
         recvn(clientSock, (char*)&keyInfo, sizeof(keyInfo), 0);
+
+        //recvn(clientSock, (char*)&monster, sizeof(monster), 0);
+
         EnterCriticalSection(&cs);
         Client_ID = keyInfo.id;
         leftMove = keyInfo.left;
@@ -208,10 +275,13 @@ DWORD WINAPI Client_Thread(LPVOID arg)
         attackState = keyInfo.space;
         LeaveCriticalSection(&cs);
 
+
         ResetEvent(hReadEvent);
         SetEvent(hOperEvent);
         //cout << "한번만 실행?" << endl;
         //KeyMessage(&keyInfo.cKey, hero[keyInfo.id]);
+
+        send(clientSock, (char*)&monsters, sizeof(monsters), 0);
 
         send(clientSock, (char*)&hero, sizeof(hero), 0);
 
@@ -229,6 +299,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
 
     int time[2];
     int delete_Time[2][10];
+
     for (int i = 0; i < 2; i++)
     {
         time[i] = 0;
@@ -259,6 +330,9 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
                 if (downMove == true) {
                     hero[i].y += 1;
                 }
+
+                // cout << hero[1].x << endl;
+
                 if (attackState == true)     // 스페이스 키
                 {
                     if (time[i] < 5)
@@ -297,11 +371,32 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
                         delete_Time[i][j]++;
                     }
 
-                    if (delete_Time[i][j] > 30)
+                    if (delete_Time[i][j] > 10)
                     {
                         hero[i].BulletArr[i].isFire = false;
                         delete_Time[i][j] = 0;
                     }
+                }
+            }
+        }
+
+
+        {
+            //monster spawn
+            ++MonsterSpawnTick;
+            if (MonsterSpawnTick > 2500) {
+                MonsterSpawn(rand() % 3 + 1);
+                MonsterSpawnTick = 0;
+            }
+
+            //monster move
+            for (int i = 0; i < 5; ++i) {
+                if (monsters[i].isActivated == true) {
+                    monsters[i].x = monsters[i].x;
+                    monsters[i].y = monsters[i].y + 0.2f;
+                }
+                if (monsters[i].y >= 614.f) {
+                    monsters[i].isActivated = false;
                 }
             }
         }

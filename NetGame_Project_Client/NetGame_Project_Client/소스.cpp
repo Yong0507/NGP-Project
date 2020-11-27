@@ -49,6 +49,14 @@ struct HeroBullet {
 #pragma pack(pop)
 
 #pragma pack(push,1)
+struct Monster {
+    float x, y;
+    short size;
+    bool isActivated;
+};
+#pragma pack(pop)
+
+#pragma pack(push,1)
 struct CHero {
     short x;
     short y;
@@ -71,6 +79,9 @@ CImage imgBackBuff;
 CImage heroimg;
 CImage heroimg2;
 CImage HBullet[10];
+CImage MonsterImg[5];
+
+Monster monster[5];
 
 static char messageBuffer[BUFSIZE];
 
@@ -193,6 +204,9 @@ DWORD WINAPI Server_Thread(LPVOID arg)
     hero[0] = *(CHero*)messageBuffer;
     keyInfo.id = hero[0].id;
 
+    // 서버에서 초기화 한 몬스터 값 수신
+    recvn(sock, (char*)&monster, sizeof(monster), 0);
+
     MyRect = true;
 
     while (1) {
@@ -200,9 +214,13 @@ DWORD WINAPI Server_Thread(LPVOID arg)
 
         send(sock, (char*)&keyInfo, sizeof(keyInfo), 0);
 
+        SetEvent(hRanderEvent);
+
+        recvn(sock, (char*)&monster, sizeof(monster), 0);
+
         recvn(sock, (char*)&hero, sizeof(hero), 0);
 
-        SetEvent(hRanderEvent);
+
     }
     closesocket(sock);
     exit(1);
@@ -219,7 +237,13 @@ void ImgLoad() {
     for (int i = 0; i < 10; ++i) {
         HBullet[i].Load(TEXT("bullet.png"));
     }
+
+    for (int i = 0; i < 5; ++i) {
+        MonsterImg[i].Load(TEXT("monster.png"));
+    }
 }
+
+
 
 void OnDraw(HWND hWnd)
 {
@@ -235,6 +259,12 @@ void OnDraw(HWND hWnd)
 
     //BG
     imgBackGround.Draw(memDC, 0, 0, 460, 614);
+
+    if (hero[0].connect == true && hero[1].connect == true) {
+        for (int i = 0; i < 5; ++i) {
+            MonsterImg[i].Draw(memDC, monster[i].x, monster[i].y, monster[i].size, monster[i].size);
+        }
+    }
 
     // hero draw
     if (true == MyRect)
@@ -383,7 +413,7 @@ int recvn(SOCKET s, char* buf, int len, int flags)
     int received;
     char* ptr = buf;
     int left = len;
-
+     
     while (left > 0) {
         received = recv(s, ptr, left, flags);
         // recv = 실제 읽은 데이터의 크기를 return
