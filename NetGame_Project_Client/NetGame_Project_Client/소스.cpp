@@ -46,17 +46,17 @@ struct KEY {
 struct HeroBullet {
     bool isFire; // 총알을 발사했습니까?
     short x, y;
+    RECT rc;
 };
 #pragma pack(pop)
 
-#pragma pack(push,1)
+#pragma pack(push,1) 
 struct CHero {
     short x;
     short y;
     bool connect;
     short id;
     RECT rc;
-    bool IsShoot;
     HeroBullet BulletArr[10];
 };
 #pragma pack(pop)
@@ -66,6 +66,7 @@ struct Monster {
     short x, y;
     short size;
     bool isActivated;
+    RECT rc;
 };
 #pragma pack(pop)
 
@@ -204,7 +205,9 @@ void OnDraw(HWND hWnd)
 
     if (hero[0].connect == true && hero[1].connect == true) {
         for (int i = 0; i < 5; ++i) {
-            monsterimg[i].Draw(memDC, monster[i].x, monster[i].y, monster[i].size, monster[i].size);
+            if (monster[i].isActivated == true) {
+                monsterimg[i].Draw(memDC, monster[i].x, monster[i].y, monster[i].size, monster[i].size);
+            }
         }
     }
 
@@ -244,6 +247,7 @@ void OnDraw(HWND hWnd)
         }
 
     }
+
 
 
 
@@ -292,9 +296,6 @@ DWORD WINAPI Server_Thread(LPVOID arg)
     while (1) {
         recvn(sock, (char*)&monster, sizeof(monster), 0);
         recvn(sock, (char*)&hero, sizeof(hero), 0);
-
-
-
     }
     closesocket(sock);
     exit(1);
@@ -318,7 +319,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         //// 백 버퍼 생성
         imgBackBuff.Create(Window_Size_X, Window_Size_Y, 24);
 
-        SetTimer(hWnd, 0, 30, NULL);
+        SetTimer(hWnd, 0, 24, NULL);
 
         break;
 
