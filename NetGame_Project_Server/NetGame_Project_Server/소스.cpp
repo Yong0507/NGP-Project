@@ -546,7 +546,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
 
                 if (CollideTest(hero[Client_ID].BulletArr[j].rc, monsters[i].rc) == true)
                 {
-                    hero[Client_ID].point += 500;
+                    hero[Client_ID].point += 100;
                     hero[Client_ID].BulletArr[j].isFire = false;
 
                     hero[Client_ID].BulletArr[j].x = -100;
@@ -591,7 +591,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
         for (int j = 0; j < 10; ++j) {
             if (CollideTest(hero[Client_ID].BulletArr[j].rc, boss.rc) == true)
             {
-                hero[Client_ID].point += 1000;
+                hero[Client_ID].point += 500;
                 hero[Client_ID].BulletArr[j].isFire = false;
 
                 hero[Client_ID].BulletArr[j].x = -100;

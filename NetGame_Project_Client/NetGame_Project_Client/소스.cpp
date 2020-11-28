@@ -79,7 +79,8 @@ struct BossMonster {
     RECT rc;
 };
 #pragma pack(pop)
-
+TCHAR str[20];
+TCHAR str2[20];
 
 CHero hero[2];
 HeroBullet hbullet[2];
@@ -227,6 +228,15 @@ void OnDraw(HWND hWnd)
         }
     }
 
+    if (hero[0].connect == true) {
+        sprintf(str, "1P : %d", hero[0].point);
+        TextOut(memDC, 10, 10, str, lstrlen(str));
+    }
+    if (hero[1].connect == true) {
+        sprintf(str, "2P : %d", hero[1].point);
+        TextOut(memDC, 10, 30, str, lstrlen(str));
+    }
+
     // hero draw
     if (true == MyRect)
     {
@@ -237,7 +247,6 @@ void OnDraw(HWND hWnd)
                 if (keyInfo.id == i)
                 {
                     heroimg.Draw(memDC, hero[i].x, hero[i].y, 90, 90);
-                    /*TextOut(memDC, 50, 50, (LPCSTR)hero[i].point, sizeof((LPCSTR)hero[i].point));*/
                     // ÃÑ¾Ë
                     for (int j = 0; j < 10; j++)
                     {
@@ -262,7 +271,6 @@ void OnDraw(HWND hWnd)
                 }
             }
         }
-
     }
 
     SetBkMode(memDC, TRANSPARENT);
