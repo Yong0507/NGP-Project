@@ -1,12 +1,12 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS // 최신 VC++ 컴파일 시 경고 방지
 #pragma comment(lib, "ws2_32")
+#pragma comment(lib,"winmm")
 #include <winsock2.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include<iostream>
 #include <process.h>
-#include <time.h>
-#include<thread>
+#include<windows.h>
 using namespace std;
 
 #define SERVERPORT 9000
@@ -24,9 +24,6 @@ using namespace std;
 DWORD WINAPI Client_Thread(LPVOID arg);
 DWORD WINAPI Operation_Thread(LPVOID arg);
 int recvn(SOCKET s, char* buf, int len, int flags);
-
-int MonsterSpawnTick = 110;
-
 
 #pragma pack(push,1)
 struct KEY {
@@ -61,7 +58,6 @@ struct Monster {
     bool isActivated;
 };
 #pragma pack(pop)
-
 
 #pragma region 오류 출력 부분
 // 소켓 함수 오류 출력 후 종료
@@ -108,6 +104,8 @@ bool rightMove;
 bool upMove;
 bool downMove;
 bool attackState;
+
+int MonsterSpawnTick = 0;
 
 CRITICAL_SECTION cs; // 임계영역 변수
 
@@ -163,7 +161,6 @@ int main(int argc, char* argv[])
     if (hReadEvent == NULL) return 1;
     hOperEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (hOperEvent == NULL) return 1;
-
     int retval;
     // 윈속 초기화
     WSADATA wsa;
@@ -211,19 +208,19 @@ int main(int argc, char* argv[])
         if (client_sock == INVALID_SOCKET) {
             err_display("accept()");
         }
-
         clientCount++;
         clientSocks[clientCount] = client_sock;
         //hero[clientCount].connect = true;
         //hero[clientCount].id = clientCount;
-        hero[clientCount] = CHero{ 0,460,true,(short)clientCount,NULL,false };
-        hero[clientCount].id = clientCount;
-
-
+        if (clientCount == 0) {
+            hero[clientCount] = CHero{ 0,460,true,(short)clientCount,NULL,false };
+        }
+        else if (clientCount == 1) {
+            hero[clientCount] = CHero{ 350,460,true,(short)clientCount,NULL,false };
+        }
         for (int i = 0; i < 5; i++) {
             monsters[i] = Monster{ 600.f ,600.f, 60 };
         }
-
 
         cout << "접속한 클라 개수 : " << clientCount << endl;
         cout << "hero [" << clientCount << "].id : " << hero[clientCount].id << endl;
@@ -233,6 +230,7 @@ int main(int argc, char* argv[])
 
 
         hThread2 = CreateThread(NULL, 0, Operation_Thread, (LPVOID)&client_sock, 0, NULL);
+
     }
 
     // 임계역역 삭제
@@ -252,19 +250,16 @@ DWORD WINAPI Client_Thread(LPVOID arg)
     SOCKET clientSock = *((SOCKET*)arg); //매개변수로받은 클라이언트 소켓을 전달
 
     int retval;
-    int i = 0;
+
     // hero.id 송신
     send(clientSock, (char*)&hero[clientCount], sizeof(CHero), 0);
+
     // 처음 몬스터 초기값 송신
     send(clientSock, (char*)&monsters, sizeof(monsters), 0);
-    unsigned int n = 0;
 
     while (1) {
         WaitForSingleObject(hReadEvent, INFINITE);
-
         recvn(clientSock, (char*)&keyInfo, sizeof(keyInfo), 0);
-
-        //recvn(clientSock, (char*)&monster, sizeof(monster), 0);
 
         EnterCriticalSection(&cs);
         Client_ID = keyInfo.id;
@@ -275,18 +270,17 @@ DWORD WINAPI Client_Thread(LPVOID arg)
         attackState = keyInfo.space;
         LeaveCriticalSection(&cs);
 
-
-        ResetEvent(hReadEvent);
-        SetEvent(hOperEvent);
         //cout << "한번만 실행?" << endl;
         //KeyMessage(&keyInfo.cKey, hero[keyInfo.id]);
+        ResetEvent(hReadEvent);
+        SetEvent(hOperEvent);
 
         send(clientSock, (char*)&monsters, sizeof(monsters), 0);
-
         send(clientSock, (char*)&hero, sizeof(hero), 0);
 
-
         //SetEvent(hOperEvent);
+
+
     }
 
     closesocket(clientSock);//소켓을 종료한다.
@@ -295,53 +289,32 @@ DWORD WINAPI Client_Thread(LPVOID arg)
 
 DWORD WINAPI Operation_Thread(LPVOID arg)
 {
-    int bulletTimer{};
-
-    int time[2];
-    int delete_Time[2][10];
-
-    for (int i = 0; i < 2; i++)
-    {
-        time[i] = 0;
-
-        for (int j = 0; j < 10; j++)
-        {
-            delete_Time[i][j] = 0;
-        }
-    }
+    DWORD dwStartTime = timeGetTime();
 
     while (true) {
         WaitForSingleObject(hOperEvent, INFINITE);
+        DWORD dwNowTime = timeGetTime();
 
         for (int i = 0; i < MAX_CLNT; i++) {
             if (Client_ID == i)               // ID 구분
             {
                 if (rightMove == true)          // 오른 키
                 {
-                    hero[i].x += 1;
+                    hero[i].x += 5;
                 }
                 if (leftMove == true)     // 왼쪽 키
                 {
-                    hero[i].x -= 1;
+                    hero[i].x -= 5;
                 }
                 if (upMove == true) {
-                    hero[i].y -= 1;
+                    hero[i].y -= 5;
                 }
                 if (downMove == true) {
-                    hero[i].y += 1;
+                    hero[i].y += 5;
                 }
-
-                // cout << hero[1].x << endl;
-
                 if (attackState == true)     // 스페이스 키
                 {
-                    if (time[i] < 5)
-                    {
-                        time[i]++;
-                    }
-
-                    for (int j = 0; j < 10; j++)
-                    {
+                    for (int j = 0; j < 10; j++) {
                         if (hero[i].BulletArr[j].isFire == false)
                         {
                             hero[i].BulletArr[j].isFire = true;
@@ -351,40 +324,27 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
                             break;
                         }
                     }
-                    time[i] = 0;
-                }
-                else
-                {
-                    time[i] = 0;
 
                 }
-
                 for (int j = 0; j < 10; j++)
                 {
                     if (hero[i].BulletArr[j].isFire == true)
                     {
-                        hero[i].BulletArr[j].y -= 1;
+                        hero[i].BulletArr[j].y -= 10;
+
                         if (hero[i].BulletArr[j].y < -64) {
                             hero[i].BulletArr[j].isFire = false;
                             hero[i].BulletArr[j].y = 600;
                         }
-                        delete_Time[i][j]++;
-                    }
-
-                    if (delete_Time[i][j] > 10)
-                    {
-                        hero[i].BulletArr[i].isFire = false;
-                        delete_Time[i][j] = 0;
                     }
                 }
             }
+
         }
-
-
         {
             //monster spawn
             ++MonsterSpawnTick;
-            if (MonsterSpawnTick > 2500) {
+            if (MonsterSpawnTick > 400) {
                 MonsterSpawn(rand() % 3 + 1);
                 MonsterSpawnTick = 0;
             }
@@ -393,14 +353,13 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
             for (int i = 0; i < 5; ++i) {
                 if (monsters[i].isActivated == true) {
                     monsters[i].x = monsters[i].x;
-                    monsters[i].y = monsters[i].y + 0.2f;
+                    monsters[i].y = monsters[i].y + 1.f;
                 }
                 if (monsters[i].y >= 614.f) {
                     monsters[i].isActivated = false;
                 }
             }
         }
-
         //cout << "operation 이후에 send 진행?" << endl;
 
         ResetEvent(hOperEvent);

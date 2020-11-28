@@ -9,6 +9,7 @@
 
 using namespace std;
 #pragma comment (lib,"WS2_32.LIB")
+#pragma comment(lib,"winmm")
 
 #define SERVERPORT 9000
 #define SERVERIP "127.0.0.1"
@@ -49,14 +50,6 @@ struct HeroBullet {
 #pragma pack(pop)
 
 #pragma pack(push,1)
-struct Monster {
-    float x, y;
-    short size;
-    bool isActivated;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
 struct CHero {
     short x;
     short y;
@@ -67,6 +60,15 @@ struct CHero {
     HeroBullet BulletArr[10];
 };
 #pragma pack(pop)
+
+#pragma pack(push,1)
+struct Monster {
+    float x, y;
+    short size;
+    bool isActivated;
+};
+#pragma pack(pop)
+
 
 CHero hero[2];
 HeroBullet hbullet[2];
@@ -79,16 +81,15 @@ CImage imgBackBuff;
 CImage heroimg;
 CImage heroimg2;
 CImage HBullet[10];
-CImage MonsterImg[5];
-
 Monster monster[5];
+CImage monsterimg[5];
 
 static char messageBuffer[BUFSIZE];
 
 static SOCKET sock;
 
-HANDLE hReadEvent;
-HANDLE hRanderEvent;
+
+
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdParam, int nCmdShow)
 {
@@ -129,12 +130,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
     ShowWindow(hWnd, nCmdShow);
     UpdateWindow(hWnd);
 
-    hReadEvent = CreateEvent(NULL, FALSE, TRUE, NULL);
-    if (hReadEvent == NULL) return 1;
-    hRanderEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-    if (hRanderEvent == NULL) return 1;
-
-    // 소켓 통신 스레드 생성
     CreateThread(NULL, 0, Server_Thread, NULL, 0, NULL);
 
     while (GetMessage(&Message, 0, 0, 0)) {
@@ -174,58 +169,6 @@ void err_display(char* msg)
 }
 #pragma endregion 오류 출력 부분
 
-
-DWORD WINAPI Server_Thread(LPVOID arg)
-{
-    // send, recv 함수 출력값 저장용
-    int retval;
-
-    // 윈속 초기화
-    WSADATA wsa;
-    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
-        return 1;
-
-    // socket()
-    sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock == INVALID_SOCKET) err_quit("socket()");
-
-    // connect()
-    SOCKADDR_IN serveraddr;
-    ZeroMemory(&serveraddr, sizeof(serveraddr));
-    serveraddr.sin_family = AF_INET;
-    serveraddr.sin_addr.s_addr = inet_addr(SERVERIP);
-    serveraddr.sin_port = htons(SERVERPORT);
-    retval = connect(sock, (SOCKADDR*)&serveraddr, sizeof(serveraddr));
-    if (retval == SOCKET_ERROR) err_quit("connect()");
-
-
-    //hero.id 수신
-    recvn(sock, messageBuffer, sizeof(CHero), 0);
-    hero[0] = *(CHero*)messageBuffer;
-    keyInfo.id = hero[0].id;
-
-    // 서버에서 초기화 한 몬스터 값 수신
-    recvn(sock, (char*)&monster, sizeof(monster), 0);
-
-    MyRect = true;
-
-    while (1) {
-        WaitForSingleObject(hReadEvent, INFINITE);
-
-        send(sock, (char*)&keyInfo, sizeof(keyInfo), 0);
-
-        SetEvent(hRanderEvent);
-
-        recvn(sock, (char*)&monster, sizeof(monster), 0);
-
-        recvn(sock, (char*)&hero, sizeof(hero), 0);
-
-
-    }
-    closesocket(sock);
-    exit(1);
-}
-
 void ImgLoad() {
     // BG img load
     imgBackGround.Load(TEXT("BG.png"));
@@ -239,11 +182,9 @@ void ImgLoad() {
     }
 
     for (int i = 0; i < 5; ++i) {
-        MonsterImg[i].Load(TEXT("monster.png"));
+        monsterimg[i].Load(TEXT("monster.png"));
     }
 }
-
-
 
 void OnDraw(HWND hWnd)
 {
@@ -260,9 +201,10 @@ void OnDraw(HWND hWnd)
     //BG
     imgBackGround.Draw(memDC, 0, 0, 460, 614);
 
+
     if (hero[0].connect == true && hero[1].connect == true) {
         for (int i = 0; i < 5; ++i) {
-            MonsterImg[i].Draw(memDC, monster[i].x, monster[i].y, monster[i].size, monster[i].size);
+            monsterimg[i].Draw(memDC, monster[i].x, monster[i].y, monster[i].size, monster[i].size);
         }
     }
 
@@ -300,17 +242,62 @@ void OnDraw(HWND hWnd)
                 }
             }
         }
+
     }
 
-    InvalidateRect(hWnd, NULL, FALSE);
+
+
 
     SetBkMode(memDC, TRANSPARENT);
 
     imgBackBuff.Draw(hdc, 0, 0);
     imgBackBuff.ReleaseDC();
     EndPaint(hWnd, &ps);
+}
+
+DWORD WINAPI Server_Thread(LPVOID arg)
+{
+    // send, recv 함수 출력값 저장용
+    int retval;
+
+    // 윈속 초기화
+    WSADATA wsa;
+    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+        return 1;
+
+    // socket()
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock == INVALID_SOCKET) err_quit("socket()");
+
+    // connect()
+    SOCKADDR_IN serveraddr;
+    ZeroMemory(&serveraddr, sizeof(serveraddr));
+    serveraddr.sin_family = AF_INET;
+    serveraddr.sin_addr.s_addr = inet_addr(SERVERIP);
+    serveraddr.sin_port = htons(SERVERPORT);
+    retval = connect(sock, (SOCKADDR*)&serveraddr, sizeof(serveraddr));
+    if (retval == SOCKET_ERROR) err_quit("connect()");
 
 
+    //hero.id 수신
+    recvn(sock, messageBuffer, sizeof(CHero), 0);
+    hero[0] = *(CHero*)messageBuffer;
+    keyInfo.id = hero[0].id;
+
+    // 서버에서 초기화 한 몬스터 값 수신
+    recvn(sock, (char*)&monster, sizeof(monster), 0);
+
+    MyRect = true;
+
+    while (1) {
+        recvn(sock, (char*)&monster, sizeof(monster), 0);
+        recvn(sock, (char*)&hero, sizeof(hero), 0);
+
+
+
+    }
+    closesocket(sock);
+    exit(1);
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -324,31 +311,34 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 #pragma region 초기화
 
     case WM_CREATE:
-    {
+
         // 이미지 로드
         ImgLoad();
 
         //// 백 버퍼 생성
         imgBackBuff.Create(Window_Size_X, Window_Size_Y, 24);
-        break;
-    }
-#pragma endregion
 
-#pragma region PAINT
-    case WM_PAINT:
-        WaitForSingleObject(hRanderEvent, INFINITE);
-        OnDraw(hWnd);
-        SetEvent(hReadEvent);
+        SetTimer(hWnd, 0, 16, NULL);
+
         break;
 
 #pragma endregion
 
-#pragma region 타이머
     case WM_TIMER:
+        send(sock, (char*)&keyInfo, sizeof(keyInfo), 0);
+
         InvalidateRect(hWnd, NULL, FALSE);
         break;
 
+#pragma region PAINT
+    case WM_PAINT:
+
+        OnDraw(hWnd);
+
+        break;
+
 #pragma endregion
+
 
 #pragma region 키입력
     case WM_KEYUP:
@@ -379,15 +369,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             keyInfo.left = true;
         }
-        else if (wParam == VK_SPACE)
-        {
-            keyInfo.space = true;
-        }
         else if (wParam == VK_UP) {
             keyInfo.up = true;
         }
         else if (wParam == VK_DOWN) {
             keyInfo.down = true;
+        }
+        else if (wParam == VK_SPACE) {
+            keyInfo.space = true;
         }
 
         InvalidateRect(hWnd, NULL, FALSE); // FALSE로 하면 이어짐  
@@ -413,7 +402,7 @@ int recvn(SOCKET s, char* buf, int len, int flags)
     int received;
     char* ptr = buf;
     int left = len;
-     
+
     while (left > 0) {
         received = recv(s, ptr, left, flags);
         // recv = 실제 읽은 데이터의 크기를 return
