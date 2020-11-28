@@ -442,7 +442,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
             ++MonsterSpawnTick;
             //monster spawn
             if (MonsterSpawnTick > 300) {
-                if (MonsterWave < 3) {
+                if (MonsterWave < 10) {
                     MonsterSpawn(rand() % 3 + 1);
                     MonsterWave += 1;
                     MonsterSpawnTick = 0;
@@ -450,7 +450,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
             }
             LeaveCriticalSection(&cs);
             //boss spawn
-            if (MonsterWave == 3) {
+            if (MonsterWave == 10) {
                 if (BossWave == 1 && boss.isActivated == false) {
                     boss.isActivated = true;
                     BossWave = 0;
