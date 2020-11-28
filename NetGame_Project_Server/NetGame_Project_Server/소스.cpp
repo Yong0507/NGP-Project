@@ -107,6 +107,7 @@ bool attackState;
 
 int BulletSpawnTick = 0;
 int MonsterSpawnTick = 100;
+short MonsterWave = 0;
 
 CRITICAL_SECTION cs; // 임계영역 변수
 
@@ -117,6 +118,9 @@ bool CollideTest(RECT rc1, RECT rc2)
 }
 
 void MonsterSpawn(int type) {
+    EnterCriticalSection(&cs);
+    MonsterWave += 1;
+    LeaveCriticalSection(&cs);
     switch (type) {
     case 1:
         monsters[0].x = 14;
@@ -285,9 +289,9 @@ DWORD WINAPI Client_Thread(LPVOID arg)
         WaitForSingleObject(hReadEvent, INFINITE);
 
         recvn(clientSock, (char*)&keyInfo, sizeof(keyInfo), 0);
-        Client_ID = keyInfo.id;
-        EnterCriticalSection(&cs);
 
+        EnterCriticalSection(&cs);
+        Client_ID = keyInfo.id;
         leftMove = keyInfo.left;
         rightMove = keyInfo.right;
         upMove = keyInfo.up;
@@ -359,6 +363,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
         }
         if (attackState == true)     // 스페이스 키
         {
+            EnterCriticalSection(&cs);
             ++BulletSpawnTick;
             if (BulletSpawnTick > 10) {
                 for (int j = 0; j < 10; j++) {
@@ -379,7 +384,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
                 }
                 BulletSpawnTick = 0;
             }
-
+            LeaveCriticalSection(&cs);
 
         }
         for (int j = 0; j < 10; j++)
@@ -409,13 +414,15 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
             }
         }
         {
+            EnterCriticalSection(&cs);
             ++MonsterSpawnTick;
             //monster spawn
-            if (MonsterSpawnTick > 300) {
+            if (MonsterSpawnTick > 300 && MonsterWave < 10) {
                 MonsterSpawn(rand() % 3 + 1);
                 MonsterSpawnTick = 0;
+                cout << MonsterWave << endl;
             }
-
+            LeaveCriticalSection(&cs);
             //monster move
             for (int i = 0; i < 5; ++i) {
                 if (monsters[i].isActivated == true) {
