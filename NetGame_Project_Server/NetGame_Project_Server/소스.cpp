@@ -56,7 +56,6 @@ struct Monster {
     short x, y;
     short size;
     bool isActivated;
-
 };
 #pragma pack(pop)
 
@@ -297,70 +296,69 @@ DWORD WINAPI Client_Thread(LPVOID arg)
 
 DWORD WINAPI Operation_Thread(LPVOID arg)
 {
-
     DWORD dwStartTime = timeGetTime();
+
     while (true) {
-
         WaitForSingleObject(hOperEvent, INFINITE);
+        DWORD dwNowTime = timeGetTime();
 
-        if (rightMove == true)          // 오른 키
-        {
-            hero[Client_ID].x += 5;
-        }
-        if (leftMove == true)     // 왼쪽 키
-        {
-            hero[Client_ID].x -= 5;
-        }
-        if (upMove == true) {
-            hero[Client_ID].y -= 5;
-        }
-        if (downMove == true) {
-            hero[Client_ID].y += 5;
-        }
-        if (attackState == true)     // 스페이스 키
-        {
-            ++BulletSpawnTick;
-            if (BulletSpawnTick > 10) {
-                for (int j = 0; j < 10; j++) {
-                    if (hero[Client_ID].BulletArr[j].isFire == false)
-                    {
-                        hero[Client_ID].BulletArr[j].isFire = true;
-                        hero[Client_ID].BulletArr[j].x = hero[Client_ID].x;
-                        hero[Client_ID].BulletArr[j].y = hero[Client_ID].y;
+        for (int i = 0; i < MAX_CLNT; i++) {
+            if (Client_ID == i)               // ID 구분
+            {
+                if (rightMove == true)          // 오른 키
+                {
+                    hero[i].x += 5;
+                }
+                if (leftMove == true)     // 왼쪽 키
+                {
+                    hero[i].x -= 5;
+                }
+                if (upMove == true) {
+                    hero[i].y -= 5;
+                }
+                if (downMove == true) {
+                    hero[i].y += 5;
+                }
+                if (attackState == true)     // 스페이스 키
+                {
+                    ++BulletSpawnTick;
+                    if (BulletSpawnTick > 10) {
+                        for (int j = 0; j < 10; j++) {
+                            if (hero[i].BulletArr[j].isFire == false)
+                            {
+                                hero[i].BulletArr[j].isFire = true;
+                                hero[i].BulletArr[j].x = hero[i].x;
+                                hero[i].BulletArr[j].y = hero[i].y;
 
-                        break;
+                                break;
+                            }
+                        }
+                        BulletSpawnTick = 0;
                     }
                 }
-                BulletSpawnTick = 0;
-            }
-        }
-        for (int j = 0; j < 10; j++)
-        {
-            if (hero[Client_ID].BulletArr[j].isFire == true)
-            {
-                hero[Client_ID].BulletArr[j].y -= 10;
+                for (int j = 0; j < 10; j++)
+                {
+                    if (hero[i].BulletArr[j].isFire == true)
+                    {
+                        hero[i].BulletArr[j].y -= 10;
 
-                if (hero[Client_ID].BulletArr[j].y < -64) {
-                    hero[Client_ID].BulletArr[j].isFire = false;
-                    hero[Client_ID].BulletArr[j].x = 0;
-                    hero[Client_ID].BulletArr[j].y = 600;
+                        if (hero[i].BulletArr[j].y < -64) {
+                            hero[i].BulletArr[j].isFire = false;
+                            hero[i].BulletArr[j].x = 0;
+                            hero[i].BulletArr[j].y = 600;
+                        }
+                    }
                 }
             }
+
         }
-
-
         {
             //monster spawn
-<<<<<<< HEAD
             ++MonsterSpawnTick;
             //cout << MonsterSpawnTick << endl;
             if (MonsterSpawnTick > 240) {
-=======
-            DWORD dwNowTime = timeGetTime();
-            if (dwNowTime - dwStartTime > 4500.0f) {
->>>>>>> 443e4cd3a2f7ba95c7772135eba55b297d7c6406
                 MonsterSpawn(rand() % 3 + 1);
-                dwStartTime = dwNowTime;
+                MonsterSpawnTick = 0;
             }
 
             //monster move
