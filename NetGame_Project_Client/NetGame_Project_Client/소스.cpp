@@ -58,6 +58,7 @@ struct CHero {
     short id;
     RECT rc;
     HeroBullet BulletArr[10];
+    short point;
 };
 #pragma pack(pop)
 
@@ -70,9 +71,19 @@ struct Monster {
 };
 #pragma pack(pop)
 
+#pragma pack(push,1)
+struct BossMonster {
+    short x, y;
+    bool isActivated;
+    short hp;
+    RECT rc;
+};
+#pragma pack(pop)
+
 
 CHero hero[2];
 HeroBullet hbullet[2];
+BossMonster boss;
 
 static KEY keyInfo;    // 입력된 키 정보 구조체
 static bool SockConnect = false;
@@ -84,13 +95,11 @@ CImage heroimg2;
 CImage HBullet[10];
 Monster monster[5];
 CImage monsterimg[5];
+CImage bossimg;
 
 static char messageBuffer[BUFSIZE];
 
 static SOCKET sock;
-
-
-
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdParam, int nCmdShow)
 {
@@ -185,6 +194,8 @@ void ImgLoad() {
     for (int i = 0; i < 5; ++i) {
         monsterimg[i].Load(TEXT("monster.png"));
     }
+
+    bossimg.Load(TEXT("boss.png"));
 }
 
 void OnDraw(HWND hWnd)
@@ -202,12 +213,17 @@ void OnDraw(HWND hWnd)
     //BG
     imgBackGround.Draw(memDC, 0, 0, 460, 614);
 
-
     if (hero[0].connect == true && hero[1].connect == true) {
         for (int i = 0; i < 5; ++i) {
             if (monster[i].isActivated == true) {
                 monsterimg[i].Draw(memDC, monster[i].x, monster[i].y, monster[i].size, monster[i].size);
             }
+        }
+    }
+
+    if (hero[0].connect == true && hero[1].connect == true) {
+        if (boss.isActivated == true) {
+            bossimg.Draw(memDC, boss.x, boss.y, 200, 200);
         }
     }
 
@@ -221,6 +237,7 @@ void OnDraw(HWND hWnd)
                 if (keyInfo.id == i)
                 {
                     heroimg.Draw(memDC, hero[i].x, hero[i].y, 90, 90);
+                    /*TextOut(memDC, 50, 50, (LPCSTR)hero[i].point, sizeof((LPCSTR)hero[i].point));*/
                     // 총알
                     for (int j = 0; j < 10; j++)
                     {
@@ -247,10 +264,6 @@ void OnDraw(HWND hWnd)
         }
 
     }
-
-
-
-
 
     SetBkMode(memDC, TRANSPARENT);
 
@@ -296,6 +309,7 @@ DWORD WINAPI Server_Thread(LPVOID arg)
     while (1) {
         recvn(sock, (char*)&monster, sizeof(monster), 0);
         recvn(sock, (char*)&hero, sizeof(hero), 0);
+        recvn(sock, (char*)&boss, sizeof(boss), 0);
     }
     closesocket(sock);
     exit(1);
