@@ -318,7 +318,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         //// 백 버퍼 생성
         imgBackBuff.Create(Window_Size_X, Window_Size_Y, 24);
 
-        SetTimer(hWnd, 0, 16, NULL);
+        SetTimer(hWnd, 0, 20, NULL);
 
         break;
 

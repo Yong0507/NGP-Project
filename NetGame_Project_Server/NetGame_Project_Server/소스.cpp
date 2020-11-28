@@ -98,7 +98,6 @@ HANDLE hThread;
 HANDLE hThread2;
 Monster monsters[5];
 
-
 bool leftMove;
 bool rightMove;
 bool upMove;
@@ -106,6 +105,7 @@ bool downMove;
 bool attackState;
 
 int MonsterSpawnTick = 0;
+int BulletSpawnTick = 0;
 
 CRITICAL_SECTION cs; // 임계영역 변수
 
@@ -314,17 +314,20 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
                 }
                 if (attackState == true)     // 스페이스 키
                 {
-                    for (int j = 0; j < 10; j++) {
-                        if (hero[i].BulletArr[j].isFire == false)
-                        {
-                            hero[i].BulletArr[j].isFire = true;
-                            hero[i].BulletArr[j].x = hero[i].x;
-                            hero[i].BulletArr[j].y = hero[i].y;
+                    ++BulletSpawnTick;
+                    if (BulletSpawnTick > 10) {
+                        for (int j = 0; j < 10; j++) {
+                            if (hero[i].BulletArr[j].isFire == false)
+                            {
+                                hero[i].BulletArr[j].isFire = true;
+                                hero[i].BulletArr[j].x = hero[i].x;
+                                hero[i].BulletArr[j].y = hero[i].y;
 
-                            break;
+                                break;
+                            }
                         }
+                        BulletSpawnTick = 0;
                     }
-
                 }
                 for (int j = 0; j < 10; j++)
                 {
@@ -334,6 +337,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
 
                         if (hero[i].BulletArr[j].y < -64) {
                             hero[i].BulletArr[j].isFire = false;
+                            hero[i].BulletArr[j].x = 0;
                             hero[i].BulletArr[j].y = 600;
                         }
                     }
@@ -344,7 +348,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
         {
             //monster spawn
             ++MonsterSpawnTick;
-            if (MonsterSpawnTick > 400) {
+            if (MonsterSpawnTick > 240) {
                 MonsterSpawn(rand() % 3 + 1);
                 MonsterSpawnTick = 0;
             }
@@ -353,10 +357,12 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
             for (int i = 0; i < 5; ++i) {
                 if (monsters[i].isActivated == true) {
                     monsters[i].x = monsters[i].x;
-                    monsters[i].y = monsters[i].y + 1.f;
+                    monsters[i].y = monsters[i].y + 3.f;
                 }
                 if (monsters[i].y >= 614.f) {
                     monsters[i].isActivated = false;
+                    monsters[i].x = 0;
+                    monsters[i].y = -70;
                 }
             }
         }
