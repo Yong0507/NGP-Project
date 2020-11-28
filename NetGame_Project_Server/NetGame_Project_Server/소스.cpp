@@ -53,7 +53,7 @@ struct CHero {
 
 #pragma pack(push,1)
 struct Monster {
-    float x, y;
+    short x, y;
     short size;
     bool isActivated;
 };
@@ -109,43 +109,50 @@ int BulletSpawnTick = 0;
 
 CRITICAL_SECTION cs; // 임계영역 변수
 
+bool CollideTest(RECT rc1, RECT rc2)
+{
+    RECT temp;
+    return IntersectRect(&temp, &rc1, &rc2);
+
+}
+
 void MonsterSpawn(int type) {
     switch (type) {
     case 1:
-        monsters[0].x = 14.f;
-        monsters[0].y = 0.f;
-        monsters[1].x = 88.f;
-        monsters[1].y = 0.f;
-        monsters[2].x = 162.f;
-        monsters[2].y = 0.f;
-        monsters[3].x = 236.f;
-        monsters[3].y = 0.f;
-        monsters[4].x = 310.f;
-        monsters[4].y = 0.f;
+        monsters[0].x = 14;
+        monsters[0].y = 0;
+        monsters[1].x = 88;
+        monsters[1].y = 0;
+        monsters[2].x = 162;
+        monsters[2].y = 0;
+        monsters[3].x = 236;
+        monsters[3].y = 0;
+        monsters[4].x = 310;
+        monsters[4].y = 0;
         break;
     case 2:
-        monsters[0].x = 14.f;
-        monsters[0].y = -30.f;
-        monsters[1].x = 88.f;
-        monsters[1].y = 0.f;
-        monsters[2].x = 162.f;
-        monsters[2].y = -30.f;
-        monsters[3].x = 236.f;
-        monsters[3].y = 0.f;
-        monsters[4].x = 310.f;
-        monsters[4].y = -30.f;
+        monsters[0].x = 14;
+        monsters[0].y = -30;
+        monsters[1].x = 88;
+        monsters[1].y = 0;
+        monsters[2].x = 162;
+        monsters[2].y = -30;
+        monsters[3].x = 236;
+        monsters[3].y = 0;
+        monsters[4].x = 310;
+        monsters[4].y = -30;
         break;
     case 3:
-        monsters[0].x = 162.f;
-        monsters[0].y = 0.f;
-        monsters[1].x = 162.f;
-        monsters[1].y = -70.f;
-        monsters[2].x = 162.f;
-        monsters[2].y = -140.f;
-        monsters[3].x = 162.f;
-        monsters[3].y = -210.f;
-        monsters[4].x = 162.f;
-        monsters[4].y = -280.f;
+        monsters[0].x = 162;
+        monsters[0].y = 0;
+        monsters[1].x = 162;
+        monsters[1].y = -70;
+        monsters[2].x = 162;
+        monsters[2].y = -140;
+        monsters[3].x = 162;
+        monsters[3].y = -210;
+        monsters[4].x = 162;
+        monsters[4].y = -280;
 
         break;
     }
@@ -219,7 +226,7 @@ int main(int argc, char* argv[])
             hero[clientCount] = CHero{ 350,460,true,(short)clientCount,NULL,false };
         }
         for (int i = 0; i < 5; i++) {
-            monsters[i] = Monster{ 600.f ,600.f, 60 };
+            monsters[i] = Monster{ 600 ,600, 60 };
         }
 
         cout << "접속한 클라 개수 : " << clientCount << endl;
@@ -348,6 +355,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
         {
             //monster spawn
             ++MonsterSpawnTick;
+            //cout << MonsterSpawnTick << endl;
             if (MonsterSpawnTick > 240) {
                 MonsterSpawn(rand() % 3 + 1);
                 MonsterSpawnTick = 0;
@@ -357,22 +365,61 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
             for (int i = 0; i < 5; ++i) {
                 if (monsters[i].isActivated == true) {
                     monsters[i].x = monsters[i].x;
-                    monsters[i].y = monsters[i].y + 3.f;
+                    monsters[i].y = monsters[i].y + 3;
                 }
-                if (monsters[i].y >= 614.f) {
+                if (monsters[i].y >= 614) {
                     monsters[i].isActivated = false;
                     monsters[i].x = 0;
                     monsters[i].y = -70;
                 }
             }
         }
-        //cout << "operation 이후에 send 진행?" << endl;
+
+        // ------------------------------------ //
+        // ------------------------------------ //
+        // --------------Collide--------------- //
+        // ------------------------------------ //
+        // ------------------------------------ //
+
+        RECT test1;
+        test1 = RECT{
+            monsters->x - monsters->size / 2,
+            monsters->y - monsters->size / 2,
+            monsters->x + monsters->size / 2,
+            monsters->y + monsters->size / 2
+        };
+
+        RECT test2;
+        test2 = RECT{
+            hero->BulletArr->x - 32,
+            hero->BulletArr->y - 32,
+            hero->BulletArr->x + 32,
+            hero->BulletArr->y + 32
+        };
+
+        if (true == CollideTest(test1, test2))
+        {
+            for (int i = 0; i < 5; ++i)
+                monsters[i].isActivated = false;
+
+        }
+
+
+        //cout << "몬스터 사각형 "<< test1.left << endl;
+        //cout << "총알 사각형" <<test2.left << endl;
+
+
+
+
+
 
         ResetEvent(hOperEvent);
         SetEvent(hReadEvent);
     }
     return 0;
 }
+
+
 
 // 사용자 정의 데이터 수신 함수, recvn( 소켓 디스크립터, 수신할 버퍼 포인터 데이터, 버퍼의 바이트 단위, )
 int recvn(SOCKET s, char* buf, int len, int flags)

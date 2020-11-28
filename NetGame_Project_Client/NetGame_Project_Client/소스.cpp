@@ -63,7 +63,7 @@ struct CHero {
 
 #pragma pack(push,1)
 struct Monster {
-    float x, y;
+    short x, y;
     short size;
     bool isActivated;
 };
@@ -318,7 +318,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         //// 백 버퍼 생성
         imgBackBuff.Create(Window_Size_X, Window_Size_Y, 24);
 
-        SetTimer(hWnd, 0, 20, NULL);
+        SetTimer(hWnd, 0, 30, NULL);
 
         break;
 
