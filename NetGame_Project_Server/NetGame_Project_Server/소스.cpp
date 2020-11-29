@@ -58,6 +58,7 @@ struct CHero {
     RECT rc;
     Bullet BulletArr[10];
     int point;
+    bool winlose;
 };
 #pragma pack(pop)
 
@@ -77,6 +78,7 @@ struct BossMonster {
     short hp;
     RECT rc;
     BossBullet BossBulletArr[5];
+    bool dead = false;
 };
 #pragma pack(pop)
 
@@ -133,8 +135,6 @@ short MonsterWave = 0;
 short BossWave = 1;
 
 short direct = 0;
-
-bool GameOver = false;
 
 CRITICAL_SECTION cs; // 임계영역 변수
 
@@ -199,13 +199,7 @@ void BossSpawn()
                             ,boss.x + 200
                             ,boss.y + 200
     };
-    boss.hp = 100;
-}
-
-void WinLose()
-{
-
-
+    boss.hp = 50;
 }
 
 short Client_ID{};
@@ -337,10 +331,10 @@ DWORD WINAPI Client_Thread(LPVOID arg)
     // 처음 몬스터 초기값 송신
     send(clientSock, (char*)&monsters, sizeof(monsters), 0);
 
-    DWORD dwStartTime = timeGetTime();
     while (1) {
-        recvn(clientSock, (char*)&keyInfo, sizeof(keyInfo), 0);
         WaitForSingleObject(hReadEvent, INFINITE);
+        Sleep(10);
+        recvn(clientSock, (char*)&keyInfo, sizeof(keyInfo), 0);
 
         EnterCriticalSection(&cs);
         Client_ID = keyInfo.id;
@@ -375,41 +369,49 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
         WaitForSingleObject(hOperEvent, INFINITE);
         if (rightMove == true)          // 오른 키
         {
-            hero[Client_ID].x += 5;
-            hero[Client_ID].rc = RECT{
-                            hero[Client_ID].x + 10
-                            ,hero[Client_ID].y + 10
-                            ,hero[Client_ID].x + 80
-                            ,hero[Client_ID].y + 80
-            };
+            if (hero[Client_ID].x <= 360) {
+                hero[Client_ID].x += 5;
+                hero[Client_ID].rc = RECT{
+                                hero[Client_ID].x + 10
+                                ,hero[Client_ID].y + 10
+                                ,hero[Client_ID].x + 80
+                                ,hero[Client_ID].y + 80
+                };
+            }
         }
         if (leftMove == true)     // 왼쪽 키
         {
-            hero[Client_ID].x -= 5;
-            hero[Client_ID].rc = RECT{
-                            hero[Client_ID].x + 10
-                            ,hero[Client_ID].y + 10
-                            ,hero[Client_ID].x + 80
-                            ,hero[Client_ID].y + 80
-            };
+            if (hero[Client_ID].x >= 0) {
+                hero[Client_ID].x -= 5;
+                hero[Client_ID].rc = RECT{
+                                hero[Client_ID].x + 10
+                                ,hero[Client_ID].y + 10
+                                ,hero[Client_ID].x + 80
+                                ,hero[Client_ID].y + 80
+                };
+            }
         }
         if (upMove == true) {
-            hero[Client_ID].y -= 5;
-            hero[Client_ID].rc = RECT{
-                            hero[Client_ID].x + 10
-                            ,hero[Client_ID].y + 10
-                            ,hero[Client_ID].x + 80
-                            ,hero[Client_ID].y + 80
-            };
+            if (hero[Client_ID].y >= 0) {
+                hero[Client_ID].y -= 5;
+                hero[Client_ID].rc = RECT{
+                                hero[Client_ID].x + 10
+                                ,hero[Client_ID].y + 10
+                                ,hero[Client_ID].x + 80
+                                ,hero[Client_ID].y + 80
+                };
+            }
         }
         if (downMove == true) {
-            hero[Client_ID].y += 5;
-            hero[Client_ID].rc = RECT{
-                     hero[Client_ID].x + 10
-                     ,hero[Client_ID].y + 10
-                     ,hero[Client_ID].x + 80
-                     ,hero[Client_ID].y + 80
-            };
+            if (hero[Client_ID].y <= 520) {
+                hero[Client_ID].y += 5;
+                hero[Client_ID].rc = RECT{
+                         hero[Client_ID].x + 10
+                         ,hero[Client_ID].y + 10
+                         ,hero[Client_ID].x + 80
+                         ,hero[Client_ID].y + 80
+                };
+            }
         }
         if (attackState == true)     // 스페이스 키
         {
@@ -468,7 +470,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
             ++MonsterSpawnTick;
             //monster spawn
             if (MonsterSpawnTick > 300) {
-                if (MonsterWave < 3) {
+                if (MonsterWave < 10) {
                     MonsterSpawn(rand() % 3 + 1);
                     MonsterWave += 1;
                     MonsterSpawnTick = 0;
@@ -476,7 +478,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
             }
             LeaveCriticalSection(&cs);
             //boss spawn
-            if (MonsterWave == 3) {
+            if (MonsterWave == 10) {
                 if (BossWave == 1 && boss.isActivated == false) {
                     boss.isActivated = true;
                     BossWave = 0;
@@ -705,7 +707,15 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
 
                 boss.hp -= 1;
                 if (boss.hp <= 0) {
-                    GameOver = true;
+                    if (hero[0].point > hero[1].point) {
+                        hero[0].winlose = true;
+                        hero[1].winlose = false;
+                    }
+                    else if (hero[0].point < hero[1].point) {
+                        hero[0].winlose = false;
+                        hero[1].winlose = true;
+                    }
+                    boss.dead = true;
                     BossWave = 0;
                     boss.isActivated = false;
                     boss.x = 120;
@@ -717,6 +727,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
                         ,boss.y + 200
                     };
                 }
+
             }
         }
 

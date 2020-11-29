@@ -68,6 +68,7 @@ struct CHero {
     RECT rc;
     HeroBullet BulletArr[10];
     int point;
+    bool winlose;
 };
 #pragma pack(pop)
 
@@ -87,6 +88,7 @@ struct BossMonster {
     short hp;
     RECT rc;
     BossBullet BossBulletArr[5];
+    bool dead;
 };
 #pragma pack(pop)
 
@@ -109,6 +111,9 @@ CImage HBullet[10];
 CImage monsterimg[5];
 CImage bossimg;
 CImage bossbullet[5];
+CImage waitingimg;
+CImage winimg;
+CImage loseimg;
 
 static char messageBuffer[BUFSIZE];
 
@@ -144,7 +149,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
         0,
         0,
         Window_Size_X,
-        Window_Size_Y,
+        Window_Size_Y + 40,
         NULL,
         (HMENU)NULL,
         hInstance,
@@ -195,6 +200,9 @@ void err_display(char* msg)
 void ImgLoad() {
     // BG img load
     imgBackGround.Load(TEXT("BG.png"));
+    waitingimg.Load(TEXT("wait.png"));
+    winimg.Load(TEXT("win.png"));
+    loseimg.Load(TEXT("lose.png"));
 
     // Hero img load
     heroimg.Load(TEXT("hero.png"));
@@ -227,73 +235,100 @@ void OnDraw(HWND hWnd)
     // √ ±‚»≠
     FillRect(memDC, &rcClient, static_cast<HBRUSH>(GetStockObject(WHITE_BRUSH)));
 
-    //BG
-    imgBackGround.Draw(memDC, 0, 0, 460, 614);
-
-    if (hero[0].connect == true && hero[1].connect == true) {
-        for (int i = 0; i < 5; ++i) {
-            if (monster[i].isActivated == true) {
-                monsterimg[i].Draw(memDC, monster[i].x, monster[i].y, monster[i].size, monster[i].size);
-            }
-        }
-    }
-
-    if (hero[0].connect == true && hero[1].connect == true) {
-        if (boss.isActivated == true) {
-            bossimg.Draw(memDC, boss.x, boss.y, 200, 200);
-            for (int i = 0; i < 5; ++i) {
-                if (boss.BossBulletArr[i].isFire == true) {
-                    bossbullet[i].Draw(memDC, boss.BossBulletArr[i].x, boss.BossBulletArr[i].y, 40, 40);
-                }
-            }
-        }
-
-    }
-
-    if (hero[0].connect == true) {
-        sprintf(str, "1P : %d", hero[0].point);
-        TextOut(memDC, 10, 10, str, lstrlen(str));
-    }
-    if (hero[1].connect == true) {
-        sprintf(str, "2P : %d", hero[1].point);
-        TextOut(memDC, 10, 30, str, lstrlen(str));
-    }
-
-    // hero draw
-    if (true == MyRect)
-    {
+    if (boss.dead == true) {
         for (int i = 0; i < 2; ++i)
         {
             if (true == hero[i].connect)
             {
-                if (keyInfo.id == i)
-                {
-                    heroimg.Draw(memDC, hero[i].x, hero[i].y, 90, 90);
-                    // √—æÀ
-                    for (int j = 0; j < 10; j++)
-                    {
-                        if (hero[i].BulletArr[j].isFire == true)
-                        {
-                            HBullet[j].Draw(memDC, hero[i].BulletArr[j].x + 15, hero[i].BulletArr[j].y, 64, 64);
+                if (keyInfo.id == i) {
+                    if (hero[i].winlose == true) {
+                        winimg.Draw(memDC, 0, 0, 460, 614);
+                    }
+                    else if (hero[i].winlose == false) {
+                        loseimg.Draw(memDC, 0, 0, 460, 614);
+                    }
+                }
+            }
+        }
+
+
+
+    }
+    else {
+        if (hero[0].connect == true && hero[1].connect == true) {
+            //BG
+            imgBackGround.Draw(memDC, 0, 0, 460, 614);
+
+            if (hero[0].connect == true && hero[1].connect == true) {
+                for (int i = 0; i < 5; ++i) {
+                    if (monster[i].isActivated == true) {
+                        monsterimg[i].Draw(memDC, monster[i].x, monster[i].y, monster[i].size, monster[i].size);
+                    }
+                }
+            }
+
+            if (hero[0].connect == true && hero[1].connect == true) {
+                if (boss.isActivated == true) {
+                    bossimg.Draw(memDC, boss.x, boss.y, 200, 200);
+                    for (int i = 0; i < 5; ++i) {
+                        if (boss.BossBulletArr[i].isFire == true) {
+                            bossbullet[i].Draw(memDC, boss.BossBulletArr[i].x, boss.BossBulletArr[i].y, 40, 40);
                         }
                     }
                 }
 
-                else
+            }
+
+            if (hero[0].connect == true) {
+                sprintf(str, "1P : %d", hero[0].point);
+                TextOut(memDC, 10, 10, str, lstrlen(str));
+            }
+            if (hero[1].connect == true) {
+                sprintf(str, "2P : %d", hero[1].point);
+                TextOut(memDC, 10, 30, str, lstrlen(str));
+            }
+
+            // hero draw
+            if (true == MyRect)
+            {
+                for (int i = 0; i < 2; ++i)
                 {
-                    heroimg2.Draw(memDC, hero[i].x, hero[i].y, 90, 90);
-                    // √—æÀ
-                    for (int j = 0; j < 10; j++)
+                    if (true == hero[i].connect)
                     {
-                        if (hero[i].BulletArr[j].isFire == true)
+                        if (keyInfo.id == i)
                         {
-                            HBullet[j].Draw(memDC, hero[i].BulletArr[j].x + 15, hero[i].BulletArr[j].y, 64, 64);
+                            heroimg.Draw(memDC, hero[i].x, hero[i].y, 90, 90);
+                            // √—æÀ
+                            for (int j = 0; j < 10; j++)
+                            {
+                                if (hero[i].BulletArr[j].isFire == true)
+                                {
+                                    HBullet[j].Draw(memDC, hero[i].BulletArr[j].x + 15, hero[i].BulletArr[j].y, 64, 64);
+                                }
+                            }
+                        }
+
+                        else
+                        {
+                            heroimg2.Draw(memDC, hero[i].x, hero[i].y, 90, 90);
+                            // √—æÀ
+                            for (int j = 0; j < 10; j++)
+                            {
+                                if (hero[i].BulletArr[j].isFire == true)
+                                {
+                                    HBullet[j].Draw(memDC, hero[i].BulletArr[j].x + 15, hero[i].BulletArr[j].y, 64, 64);
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+        else {
+            waitingimg.Draw(memDC, 0, 0, 460, 614);
+        }
     }
+
 
     SetBkMode(memDC, TRANSPARENT);
 
@@ -363,8 +398,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
         //// πÈ πˆ∆€ ª˝º∫
         imgBackBuff.Create(Window_Size_X, Window_Size_Y, 24);
-
-        SetTimer(hWnd, 0, 24, NULL);
+        SetTimer(hWnd, 0, 30, NULL);
 
         break;
 
