@@ -1,4 +1,3 @@
-#define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
 #include <Windows.h>
 #include <tchar.h>
@@ -51,6 +50,15 @@ struct HeroBullet {
 };
 #pragma pack(pop)
 
+#pragma pack(push,1)
+// 보스 총알의 정보입니다.
+struct BossBullet {
+    bool isFire;
+    short x, y;
+    RECT rc;
+};
+#pragma pack(pop)
+
 #pragma pack(push,1) 
 struct CHero {
     short x;
@@ -59,7 +67,7 @@ struct CHero {
     short id;
     RECT rc;
     HeroBullet BulletArr[10];
-    short point;
+    int point;
 };
 #pragma pack(pop)
 
@@ -78,14 +86,17 @@ struct BossMonster {
     bool isActivated;
     short hp;
     RECT rc;
+    BossBullet BossBulletArr[5];
 };
 #pragma pack(pop)
+
 TCHAR str[20];
 TCHAR str2[20];
 
 CHero hero[2];
 HeroBullet hbullet[2];
 BossMonster boss;
+Monster monster[5];
 
 static KEY keyInfo;    // 입력된 키 정보 구조체
 static bool SockConnect = false;
@@ -95,9 +106,9 @@ CImage imgBackBuff;
 CImage heroimg;
 CImage heroimg2;
 CImage HBullet[10];
-Monster monster[5];
 CImage monsterimg[5];
 CImage bossimg;
+CImage bossbullet[5];
 
 static char messageBuffer[BUFSIZE];
 
@@ -198,6 +209,10 @@ void ImgLoad() {
     }
 
     bossimg.Load(TEXT("boss.png"));
+
+    for (int i = 0; i < 5; ++i) {
+        bossbullet[i].Load(TEXT("BossBullet.png"));
+    }
 }
 
 void OnDraw(HWND hWnd)
@@ -226,7 +241,13 @@ void OnDraw(HWND hWnd)
     if (hero[0].connect == true && hero[1].connect == true) {
         if (boss.isActivated == true) {
             bossimg.Draw(memDC, boss.x, boss.y, 200, 200);
+            for (int i = 0; i < 5; ++i) {
+                if (boss.BossBulletArr[i].isFire == true) {
+                    bossbullet[i].Draw(memDC, boss.BossBulletArr[i].x, boss.BossBulletArr[i].y, 40, 40);
+                }
+            }
         }
+
     }
 
     if (hero[0].connect == true) {
@@ -319,6 +340,7 @@ DWORD WINAPI Server_Thread(LPVOID arg)
         recvn(sock, (char*)&monster, sizeof(monster), 0);
         recvn(sock, (char*)&hero, sizeof(hero), 0);
         recvn(sock, (char*)&boss, sizeof(boss), 0);
+
     }
     closesocket(sock);
     exit(1);
@@ -349,8 +371,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 #pragma endregion
 
     case WM_TIMER:
-        send(sock, (char*)&keyInfo, sizeof(keyInfo), 0);
 
+        send(sock, (char*)&keyInfo, sizeof(keyInfo), 0);
         InvalidateRect(hWnd, NULL, FALSE);
         break;
 

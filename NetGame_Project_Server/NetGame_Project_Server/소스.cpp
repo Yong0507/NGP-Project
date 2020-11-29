@@ -42,13 +42,22 @@ struct Bullet {
 #pragma pack(pop)
 
 #pragma pack(push,1)
+// 보스 총알의 정보입니다.
+struct BossBullet {
+    bool isFire;
+    short x, y;
+    RECT rc;
+};
+#pragma pack(pop)
+
+#pragma pack(push,1)
 struct CHero {
     short x, y;
     bool connect;
     short id;
     RECT rc;
     Bullet BulletArr[10];
-    short point;
+    int point;
 };
 #pragma pack(pop)
 
@@ -67,6 +76,7 @@ struct BossMonster {
     bool isActivated;
     short hp;
     RECT rc;
+    BossBullet BossBulletArr[5];
 };
 #pragma pack(pop)
 
@@ -118,11 +128,13 @@ bool attackState;
 
 int BulletSpawnTick = 0;
 int MonsterSpawnTick = 100;
-int BossSpawnTick = 0;
+int BossBulletTick = 0;
 short MonsterWave = 0;
 short BossWave = 1;
 
 short direct = 0;
+
+bool GameOver = false;
 
 CRITICAL_SECTION cs; // 임계영역 변수
 
@@ -190,6 +202,12 @@ void BossSpawn()
     boss.hp = 100;
 }
 
+void WinLose()
+{
+
+
+}
+
 short Client_ID{};
 int main(int argc, char* argv[])
 {
@@ -249,6 +267,7 @@ int main(int argc, char* argv[])
         clientSocks[clientCount] = client_sock;
         //hero[clientCount].connect = true;
         //hero[clientCount].id = clientCount;
+        //플레이어1 초기화
         if (clientCount == 0) {
             hero[clientCount] = CHero{ 0,460,true,(short)clientCount,NULL,false ,0 };
             hero[0].rc = RECT{
@@ -258,6 +277,7 @@ int main(int argc, char* argv[])
                             ,hero[0].y + 80
             };
         }
+        // 플레이어2 초기화
         else if (clientCount == 1) {
             hero[clientCount] = CHero{ 350,460,true,(short)clientCount,NULL,false,0 };
             hero[1].rc = RECT{
@@ -267,12 +287,19 @@ int main(int argc, char* argv[])
                             ,hero[1].y + 80
             };
         }
+        // 플레이어 총알 초기 좌표
         for (int i = 0; i < 10; ++i) {
             hero[clientCount].BulletArr[i].x = -100;
             hero[clientCount].BulletArr[i].y = 600;
         }
+        // 몬스터 초기 좌표
         for (int i = 0; i < 5; i++) {
             monsters[i] = Monster{ 600 ,600, 60 };
+        }
+        // 보스 총알 초기 좌표
+        for (int i = 0; i < 5; i++) {
+            boss.BossBulletArr[i].x = -100;
+            boss.BossBulletArr[i].y = -100;
         }
 
         cout << "접속한 클라 개수 : " << clientCount << endl;
@@ -312,9 +339,8 @@ DWORD WINAPI Client_Thread(LPVOID arg)
 
     DWORD dwStartTime = timeGetTime();
     while (1) {
-        WaitForSingleObject(hReadEvent, INFINITE);
-
         recvn(clientSock, (char*)&keyInfo, sizeof(keyInfo), 0);
+        WaitForSingleObject(hReadEvent, INFINITE);
 
         EnterCriticalSection(&cs);
         Client_ID = keyInfo.id;
@@ -442,7 +468,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
             ++MonsterSpawnTick;
             //monster spawn
             if (MonsterSpawnTick > 300) {
-                if (MonsterWave < 10) {
+                if (MonsterWave < 3) {
                     MonsterSpawn(rand() % 3 + 1);
                     MonsterWave += 1;
                     MonsterSpawnTick = 0;
@@ -450,7 +476,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
             }
             LeaveCriticalSection(&cs);
             //boss spawn
-            if (MonsterWave == 10) {
+            if (MonsterWave == 3) {
                 if (BossWave == 1 && boss.isActivated == false) {
                     boss.isActivated = true;
                     BossWave = 0;
@@ -462,7 +488,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
             if (boss.isActivated == true) {
                 if (boss.y < 15) {
                     boss.x = boss.x;
-                    boss.y = boss.y + 3;
+                    boss.y = boss.y + 1;
                     boss.rc = RECT{
                         boss.x
                         ,boss.y
@@ -471,6 +497,9 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
                     };
                 }
                 else if (boss.y >= 15) {
+                    EnterCriticalSection(&cs);
+                    ++BossBulletTick;
+                    LeaveCriticalSection(&cs);
                     boss.y = 15;
                     boss.rc = RECT{
                         boss.x
@@ -503,11 +532,57 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
                             direct = 0;
                         }
                     }
+
+
                 }
-
-
+            }
+            //boss bullet spawn
+            if (BossBulletTick > 150) {
+                for (int i = 0; i < 5; i++) {
+                    if (boss.BossBulletArr[i].isFire == false)
+                    {
+                        boss.BossBulletArr[i].isFire = true;
+                        boss.BossBulletArr[i].x = boss.x + 100;
+                        boss.BossBulletArr[i].y = boss.y + 100;
+                        boss.BossBulletArr[i].rc = RECT{
+                            boss.BossBulletArr[i].x + 100
+                            ,boss.BossBulletArr[i].y + 100
+                            ,boss.BossBulletArr[i].x + 126
+                            ,boss.BossBulletArr[i].y + 126
+                        };
+                        break;
+                    }
+                }
+                BossBulletTick = 0;
             }
 
+
+            // boss bullet move
+            for (int j = 0; j < 5; j++)
+            {
+                if (boss.BossBulletArr[j].isFire == true)
+                {
+                    boss.BossBulletArr[j].y += 2;
+                    boss.BossBulletArr[j].rc = RECT{
+                                     boss.BossBulletArr[j].x
+                                     ,boss.BossBulletArr[j].y
+                                     ,boss.BossBulletArr[j].x + 40
+                                     ,boss.BossBulletArr[j].y + 40
+                    };
+                }
+                if (boss.BossBulletArr[j].y > 640) {
+                    boss.BossBulletArr[j].isFire = false;
+                    boss.BossBulletArr[j].x = -100;
+                    boss.BossBulletArr[j].y = -100;
+                    boss.BossBulletArr[j].rc = RECT{
+                                boss.BossBulletArr[j].x
+                                ,boss.BossBulletArr[j].y
+                                ,boss.BossBulletArr[j].x + 40
+                                ,boss.BossBulletArr[j].y + 40
+                    };
+
+                }
+            }
 
             //monster move
             for (int i = 0; i < 5; ++i) {
@@ -587,6 +662,31 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
             }
         }
 
+        // 보스와 플레이어 간의 충돌
+        if (CollideTest(hero[Client_ID].rc, boss.rc) == true) {
+            hero[Client_ID].point -= 1000;
+            if (Client_ID == 0) {
+                hero[Client_ID].x = 0;
+                hero[Client_ID].y = 460;
+                hero[Client_ID].rc = RECT{
+                    hero[Client_ID].x + 10
+                    ,hero[Client_ID].y + 10
+                    ,hero[Client_ID].x + 80
+                    ,hero[Client_ID].y + 80
+                };
+            }
+            else if (Client_ID == 1) {
+                hero[Client_ID].x = 350;
+                hero[Client_ID].y = 460;
+                hero[Client_ID].rc = RECT{
+                    hero[Client_ID].x + 10
+                    ,hero[Client_ID].y + 10
+                    ,hero[Client_ID].x + 80
+                    ,hero[Client_ID].y + 80
+                };
+            }
+        }
+
         // 보스와 플레이어 총알 간의 충돌
         for (int j = 0; j < 10; ++j) {
             if (CollideTest(hero[Client_ID].BulletArr[j].rc, boss.rc) == true)
@@ -605,10 +705,11 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
 
                 boss.hp -= 1;
                 if (boss.hp <= 0) {
+                    GameOver = true;
                     BossWave = 0;
                     boss.isActivated = false;
                     boss.x = 120;
-                    boss.y = -200;
+                    boss.y = -250;
                     boss.rc = RECT{
                         boss.x
                         ,boss.y
@@ -616,6 +717,23 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
                         ,boss.y + 200
                     };
                 }
+            }
+        }
+
+        // 보스 총알과 플레이어 간의 충돌
+        for (int j = 0; j < 5; ++j) {
+            if (CollideTest(hero[Client_ID].rc, boss.BossBulletArr[j].rc) == true)
+            {
+                hero[Client_ID].point -= 500;
+                boss.BossBulletArr[j].isFire = false;
+                boss.BossBulletArr[j].x = -100;
+                boss.BossBulletArr[j].y = -100;
+                boss.BossBulletArr[j].rc = RECT{
+                            boss.BossBulletArr[j].x
+                            ,boss.BossBulletArr[j].y
+                            ,boss.BossBulletArr[j].x + 40
+                            ,boss.BossBulletArr[j].y + 40
+                };
             }
         }
 
