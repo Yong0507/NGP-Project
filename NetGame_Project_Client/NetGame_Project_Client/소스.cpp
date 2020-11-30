@@ -27,7 +27,7 @@ HINSTANCE g_hInst;
 LPCTSTR lpszClass = "Window Class Name";
 LPCTSTR lpszWindowName = "NGP";
 LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
-DWORD WINAPI Server_Thread(LPVOID arg);
+DWORD WINAPI Recv_Thread(LPVOID arg);
 int recvn(SOCKET s, char* buf, int len, int flags);
 
 
@@ -95,7 +95,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
     ShowWindow(hWnd, nCmdShow);
     UpdateWindow(hWnd);
 
-    CreateThread(NULL, 0, Server_Thread, NULL, 0, NULL);
+    CreateThread(NULL, 0, Recv_Thread, NULL, 0, NULL);
 
     while (GetMessage(&Message, 0, 0, 0)) {
         TranslateMessage(&Message);
@@ -273,7 +273,7 @@ void OnDraw(HWND hWnd)
     EndPaint(hWnd, &ps);
 }
 
-DWORD WINAPI Server_Thread(LPVOID arg)
+DWORD WINAPI Recv_Thread(LPVOID arg)
 {
     // send, recv 함수 출력값 저장용
     int retval;
