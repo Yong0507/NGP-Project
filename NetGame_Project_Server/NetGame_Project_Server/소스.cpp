@@ -4,83 +4,20 @@
 #include <winsock2.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include<iostream>
+#include <iostream>
 #include <process.h>
-#include<windows.h>
+#include <windows.h>
+#include "protocol.h"
+#include "global.h"
 using namespace std;
 
-#define SERVERPORT 9000
-#define BUFSIZE 1024
+bool IsCollide(RECT rc1, RECT rc2);
+void MonsterSpawn(int type);
+void BossSpawn();
 
-#define KEY_NULL   '0'
-#define KEY_DOWN   '1'
-#define KEY_LEFT   '2'
-#define KEY_RIGHT  '3'
-#define KEY_UP     '4'
-#define KEY_SPACE  '5'
-#define KEY_SPACE_NULL '6'
-
-#define MAX_CLNT 2
 DWORD WINAPI Client_Thread(LPVOID arg);
 DWORD WINAPI Operation_Thread(LPVOID arg);
 int recvn(SOCKET s, char* buf, int len, int flags);
-
-#pragma pack(push,1)
-struct KEY {
-    bool up, left, right, down, space;
-    short id;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
-// 총알의 정보입니다.
-struct Bullet {
-    bool isFire; // 총알을 발사했습니까?
-    short x, y;
-    RECT rc;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
-// 보스 총알의 정보입니다.
-struct BossBullet {
-    bool isFire;
-    short x, y;
-    RECT rc;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
-struct CHero {
-    short x, y;
-    bool connect;
-    short id;
-    RECT rc;
-    Bullet BulletArr[10];
-    int point;
-    bool winlose;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
-struct Monster {
-    short x, y;
-    short size;
-    bool isActivated;
-    RECT rc;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
-struct BossMonster {
-    short x, y;
-    bool isActivated;
-    short hp;
-    RECT rc;
-    BossBullet BossBulletArr[5];
-    bool dead = false;
-};
-#pragma pack(pop)
 
 #pragma region 오류 출력 부분
 // 소켓 함수 오류 출력 후 종료
@@ -110,15 +47,19 @@ void err_display(char* msg)
 }
 #pragma endregion
 
-int clientCount = -1;
-SOCKET clientSocks[MAX_CLNT];//클라이언트 소켓 보관용 배열
+#define SERVERPORT 9000
+
+#define monsterMax 5
+#define bulletMax  10
+
+CRITICAL_SECTION cs;
 
 HANDLE hReadEvent, hOperEvent;
-KEY keyInfo;
-CHero hero[2];
-char buf[BUFSIZE];
 HANDLE hThread;
 HANDLE hThread2;
+
+KEY keyInfo;
+CHero hero[2];
 Monster monsters[5];
 BossMonster boss;
 
@@ -128,81 +69,7 @@ bool upMove;
 bool downMove;
 bool attackState;
 
-int BulletSpawnTick = 0;
-int MonsterSpawnTick = 100;
-int BossBulletTick = 0;
-short MonsterWave = 0;
-short BossWave = 1;
 
-short direct = 0;
-
-CRITICAL_SECTION cs; // 임계영역 변수
-
-bool CollideTest(RECT rc1, RECT rc2)
-{
-    RECT temp;
-    return IntersectRect(&temp, &rc1, &rc2);
-}
-
-void MonsterSpawn(int type) {
-    switch (type) {
-    case 1:
-        monsters[0].x = 14;
-        monsters[0].y = 0;
-        monsters[1].x = 106;
-        monsters[1].y = 0;
-        monsters[2].x = 198;
-        monsters[2].y = 0;
-        monsters[3].x = 290;
-        monsters[3].y = 0;
-        monsters[4].x = 382;
-        monsters[4].y = 0;
-        break;
-    case 2:
-        monsters[0].x = 14;
-        monsters[0].y = -30;
-        monsters[1].x = 106;
-        monsters[1].y = 0;
-        monsters[2].x = 198;
-        monsters[2].y = -30;
-        monsters[3].x = 290;
-        monsters[3].y = 0;
-        monsters[4].x = 382;
-        monsters[4].y = -30;
-        break;
-    case 3:
-        monsters[0].x = 196;
-        monsters[0].y = 0;
-        monsters[1].x = 196;
-        monsters[1].y = -70;
-        monsters[2].x = 196;
-        monsters[2].y = -140;
-        monsters[3].x = 196;
-        monsters[3].y = -210;
-        monsters[4].x = 196;
-        monsters[4].y = -280;
-
-        break;
-    }
-    for (int i = 0; i < 5; ++i) {
-        monsters[i].isActivated = true;
-    }
-}
-
-void BossSpawn()
-{
-    boss.x = 120;
-    boss.y = -200;
-    boss.rc = RECT{
-                            boss.x
-                            ,boss.y
-                            ,boss.x + 200
-                            ,boss.y + 200
-    };
-    boss.hp = 50;
-}
-
-short Client_ID{};
 int main(int argc, char* argv[])
 {
     // 이벤트 생성
@@ -257,10 +124,9 @@ int main(int argc, char* argv[])
         if (client_sock == INVALID_SOCKET) {
             err_display("accept()");
         }
+
         clientCount++;
-        clientSocks[clientCount] = client_sock;
-        //hero[clientCount].connect = true;
-        //hero[clientCount].id = clientCount;
+
         //플레이어1 초기화
         if (clientCount == 0) {
             hero[clientCount] = CHero{ 0,460,true,(short)clientCount,NULL,false ,0 };
@@ -281,15 +147,18 @@ int main(int argc, char* argv[])
                             ,hero[1].y + 80
             };
         }
+
         // 플레이어 총알 초기 좌표
-        for (int i = 0; i < 10; ++i) {
+        for (int i = 0; i < bulletMax; ++i) {
             hero[clientCount].BulletArr[i].x = -100;
             hero[clientCount].BulletArr[i].y = 600;
         }
+
         // 몬스터 초기 좌표
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < monsterMax; i++) {
             monsters[i] = Monster{ 600 ,600, 60 };
         }
+
         // 보스 총알 초기 좌표
         for (int i = 0; i < 5; i++) {
             boss.BossBulletArr[i].x = -100;
@@ -298,12 +167,11 @@ int main(int argc, char* argv[])
 
         cout << "접속한 클라 개수 : " << clientCount << endl;
         cout << "hero [" << clientCount << "].id : " << hero[clientCount].id << endl;
-
-        hThread = CreateThread(NULL, 0, Client_Thread, (LPVOID)&client_sock, 0, NULL);//HandleClient 쓰레드 실행, clientSock을 매개변수로 전달
         printf("Connected Client IP : %s\n", inet_ntoa(clientaddr.sin_addr));
 
+        hThread = CreateThread(NULL, 0, Client_Thread, (LPVOID)client_sock, 0, NULL);//HandleClient 쓰레드 실행, clientSock을 매개변수로 전달
 
-        hThread2 = CreateThread(NULL, 0, Operation_Thread, (LPVOID)&client_sock, 0, NULL);
+        hThread2 = CreateThread(NULL, 0, Operation_Thread, (LPVOID)client_sock, 0, NULL);
 
     }
 
@@ -321,19 +189,19 @@ int main(int argc, char* argv[])
 
 DWORD WINAPI Client_Thread(LPVOID arg)
 {
-    SOCKET clientSock = *((SOCKET*)arg); //매개변수로받은 클라이언트 소켓을 전달
+    SOCKET clientSock = (SOCKET)arg;
 
     int retval;
 
     // hero.id 송신
     send(clientSock, (char*)&hero[clientCount], sizeof(CHero), 0);
 
-    // 처음 몬스터 초기값 송신
-    send(clientSock, (char*)&monsters, sizeof(monsters), 0);
 
     while (1) {
         WaitForSingleObject(hReadEvent, INFINITE);
-        Sleep(10);
+
+        Sleep(16);
+
         recvn(clientSock, (char*)&keyInfo, sizeof(keyInfo), 0);
 
         EnterCriticalSection(&cs);
@@ -345,16 +213,13 @@ DWORD WINAPI Client_Thread(LPVOID arg)
         attackState = keyInfo.space;
         LeaveCriticalSection(&cs);
 
-        //cout << "한번만 실행?" << endl;
-        //KeyMessage(&keyInfo.cKey, hero[keyInfo.id]);
-        ResetEvent(hReadEvent);
-        SetEvent(hOperEvent);
 
         send(clientSock, (char*)&monsters, sizeof(monsters), 0);
         send(clientSock, (char*)&hero, sizeof(hero), 0);
         send(clientSock, (char*)&boss, sizeof(boss), 0);
 
-        //SetEvent(hOperEvent);    
+        ResetEvent(hReadEvent);
+        SetEvent(hOperEvent);
     }
 
     closesocket(clientSock);//소켓을 종료한다.
@@ -364,9 +229,9 @@ DWORD WINAPI Client_Thread(LPVOID arg)
 DWORD WINAPI Operation_Thread(LPVOID arg)
 {
 
-
     while (true) {
         WaitForSingleObject(hOperEvent, INFINITE);
+
         if (rightMove == true)          // 오른 키
         {
             if (hero[Client_ID].x <= 360) {
@@ -439,7 +304,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
             LeaveCriticalSection(&cs);
 
         }
-        for (int j = 0; j < 10; j++)
+        for (int j = 0; j < bulletMax; j++)
         {
             if (hero[Client_ID].BulletArr[j].isFire == true)
             {
@@ -618,10 +483,10 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
         // ------------------------------------ //
         // ------------------------------------ //
          // 총알과 몬스터의 충돌
-        for (int i = 0; i < 5; ++i) {
-            for (int j = 0; j < 10; ++j) {
+        for (int i = 0; i < monsterMax; ++i) {
+            for (int j = 0; j < bulletMax; ++j) {
 
-                if (CollideTest(hero[Client_ID].BulletArr[j].rc, monsters[i].rc) == true)
+                if (IsCollide(hero[Client_ID].BulletArr[j].rc, monsters[i].rc) == true)
                 {
                     hero[Client_ID].point += 100;
                     hero[Client_ID].BulletArr[j].isFire = false;
@@ -648,8 +513,8 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
             }
         }
         // 몬스터와 플레이어 간의 충돌
-        for (int j = 0; j < 5; ++j) {
-            if (CollideTest(hero[Client_ID].rc, monsters[j].rc) == true)
+        for (int j = 0; j < monsterMax; ++j) {
+            if (IsCollide(hero[Client_ID].rc, monsters[j].rc) == true)
             {
                 hero[Client_ID].point -= 500;
                 monsters[j].isActivated = false;
@@ -665,7 +530,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
         }
 
         // 보스와 플레이어 간의 충돌
-        if (CollideTest(hero[Client_ID].rc, boss.rc) == true) {
+        if (IsCollide(hero[Client_ID].rc, boss.rc) == true) {
             hero[Client_ID].point -= 1000;
             if (Client_ID == 0) {
                 hero[Client_ID].x = 0;
@@ -690,8 +555,8 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
         }
 
         // 보스와 플레이어 총알 간의 충돌
-        for (int j = 0; j < 10; ++j) {
-            if (CollideTest(hero[Client_ID].BulletArr[j].rc, boss.rc) == true)
+        for (int j = 0; j < bulletMax; ++j) {
+            if (IsCollide(hero[Client_ID].BulletArr[j].rc, boss.rc) == true)
             {
                 hero[Client_ID].point += 500;
                 hero[Client_ID].BulletArr[j].isFire = false;
@@ -733,7 +598,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
 
         // 보스 총알과 플레이어 간의 충돌
         for (int j = 0; j < 5; ++j) {
-            if (CollideTest(hero[Client_ID].rc, boss.BossBulletArr[j].rc) == true)
+            if (IsCollide(hero[Client_ID].rc, boss.BossBulletArr[j].rc) == true)
             {
                 hero[Client_ID].point -= 500;
                 boss.BossBulletArr[j].isFire = false;
@@ -754,7 +619,69 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
     return 0;
 }
 
+bool IsCollide(RECT rc1, RECT rc2)
+{
+    RECT temp;
+    return IntersectRect(&temp, &rc1, &rc2);
+}
 
+void MonsterSpawn(int type) {
+    switch (type) {
+    case 1:
+        monsters[0].x = 14;
+        monsters[0].y = 0;
+        monsters[1].x = 106;
+        monsters[1].y = 0;
+        monsters[2].x = 198;
+        monsters[2].y = 0;
+        monsters[3].x = 290;
+        monsters[3].y = 0;
+        monsters[4].x = 382;
+        monsters[4].y = 0;
+        break;
+    case 2:
+        monsters[0].x = 14;
+        monsters[0].y = -30;
+        monsters[1].x = 106;
+        monsters[1].y = 0;
+        monsters[2].x = 198;
+        monsters[2].y = -30;
+        monsters[3].x = 290;
+        monsters[3].y = 0;
+        monsters[4].x = 382;
+        monsters[4].y = -30;
+        break;
+    case 3:
+        monsters[0].x = 196;
+        monsters[0].y = 0;
+        monsters[1].x = 196;
+        monsters[1].y = -70;
+        monsters[2].x = 196;
+        monsters[2].y = -140;
+        monsters[3].x = 196;
+        monsters[3].y = -210;
+        monsters[4].x = 196;
+        monsters[4].y = -280;
+
+        break;
+    }
+    for (int i = 0; i < 5; ++i) {
+        monsters[i].isActivated = true;
+    }
+}
+
+void BossSpawn()
+{
+    boss.x = 120;
+    boss.y = -200;
+    boss.rc = RECT{
+                            boss.x
+                            ,boss.y
+                            ,boss.x + 200
+                            ,boss.y + 200
+    };
+    boss.hp = 50;
+}
 
 // 사용자 정의 데이터 수신 함수, recvn( 소켓 디스크립터, 수신할 버퍼 포인터 데이터, 버퍼의 바이트 단위, )
 int recvn(SOCKET s, char* buf, int len, int flags)

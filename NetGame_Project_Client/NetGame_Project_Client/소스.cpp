@@ -1,3 +1,4 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
 #include <Windows.h>
 #include <tchar.h>
@@ -6,24 +7,18 @@
 #include <string.h>
 #include <conio.h>
 #include <atlimage.h>   // CImage 클래스가 정의된 헤더
-
+#include "protocol.h"
 using namespace std;
+
 #pragma comment (lib,"WS2_32.LIB")
 #pragma comment(lib,"winmm")
 
-#define SERVERPORT 9000
 #define SERVERIP "127.0.0.1"
-#define BUFSIZE 1024
+#define SERVERPORT 9000
 
-#define KEY_NULL   '0'
-#define KEY_DOWN   '1'
-#define KEY_LEFT   '2'
-#define KEY_RIGHT  '3'
-#define KEY_UP     '4'
-#define KEY_SPACE  '5'
-#define KEY_SPACE_NULL '6'
-
-#define bulletMax 10
+#define userMax    2 
+#define monsterMax 5
+#define bulletMax  10
 
 int Window_Size_X = 460;
 int Window_Size_Y = 614;
@@ -34,75 +29,18 @@ LPCTSTR lpszWindowName = "NGP";
 LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
 DWORD WINAPI Server_Thread(LPVOID arg);
 int recvn(SOCKET s, char* buf, int len, int flags);
-#pragma pack(push,1)
-struct KEY {
-    bool up, left, right, down, space;
-    short id;
-};
-#pragma pack(pop)
 
-#pragma pack(push,1)
-// 총알의 정보입니다.
-struct HeroBullet {
-    bool isFire; // 총알을 발사했습니까?
-    short x, y;
-    RECT rc;
-};
-#pragma pack(pop)
 
-#pragma pack(push,1)
-// 보스 총알의 정보입니다.
-struct BossBullet {
-    bool isFire;
-    short x, y;
-    RECT rc;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1) 
-struct CHero {
-    short x;
-    short y;
-    bool connect;
-    short id;
-    RECT rc;
-    HeroBullet BulletArr[10];
-    int point;
-    bool winlose;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
-struct Monster {
-    short x, y;
-    short size;
-    bool isActivated;
-    RECT rc;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
-struct BossMonster {
-    short x, y;
-    bool isActivated;
-    short hp;
-    RECT rc;
-    BossBullet BossBulletArr[5];
-    bool dead;
-};
-#pragma pack(pop)
-
-TCHAR str[20];
-TCHAR str2[20];
+SOCKET sock;
 
 CHero hero[2];
 HeroBullet hbullet[2];
 BossMonster boss;
 Monster monster[5];
 
-static KEY keyInfo;    // 입력된 키 정보 구조체
-static bool SockConnect = false;
-static bool MyRect = false;
+KEY keyInfo;    // 입력된 키 정보 구조체
+bool MyDragon = false;
+
 CImage imgBackGround;
 CImage imgBackBuff;
 CImage heroimg;
@@ -115,9 +53,8 @@ CImage waitingimg;
 CImage winimg;
 CImage loseimg;
 
-static char messageBuffer[BUFSIZE];
-
-static SOCKET sock;
+TCHAR str[20];
+TCHAR str2[20];
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdParam, int nCmdShow)
 {
@@ -208,11 +145,11 @@ void ImgLoad() {
     heroimg.Load(TEXT("hero.png"));
     heroimg2.Load(TEXT("hero2.png"));
 
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < bulletMax; ++i) {
         HBullet[i].Load(TEXT("bullet.png"));
     }
 
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < monsterMax; ++i) {
         monsterimg[i].Load(TEXT("monster.png"));
     }
 
@@ -236,7 +173,7 @@ void OnDraw(HWND hWnd)
     FillRect(memDC, &rcClient, static_cast<HBRUSH>(GetStockObject(WHITE_BRUSH)));
 
     if (boss.dead == true) {
-        for (int i = 0; i < 2; ++i)
+        for (int i = 0; i < userMax; ++i)
         {
             if (true == hero[i].connect)
             {
@@ -250,17 +187,16 @@ void OnDraw(HWND hWnd)
                 }
             }
         }
-
-
-
     }
-    else {
+
+    else
+    {
         if (hero[0].connect == true && hero[1].connect == true) {
             //BG
             imgBackGround.Draw(memDC, 0, 0, 460, 614);
 
             if (hero[0].connect == true && hero[1].connect == true) {
-                for (int i = 0; i < 5; ++i) {
+                for (int i = 0; i < monsterMax; ++i) {
                     if (monster[i].isActivated == true) {
                         monsterimg[i].Draw(memDC, monster[i].x, monster[i].y, monster[i].size, monster[i].size);
                     }
@@ -289,9 +225,9 @@ void OnDraw(HWND hWnd)
             }
 
             // hero draw
-            if (true == MyRect)
+            if (true == MyDragon)
             {
-                for (int i = 0; i < 2; ++i)
+                for (int i = 0; i < userMax; ++i)
                 {
                     if (true == hero[i].connect)
                     {
@@ -312,7 +248,7 @@ void OnDraw(HWND hWnd)
                         {
                             heroimg2.Draw(memDC, hero[i].x, hero[i].y, 90, 90);
                             // 총알
-                            for (int j = 0; j < 10; j++)
+                            for (int j = 0; j < bulletMax; j++)
                             {
                                 if (hero[i].BulletArr[j].isFire == true)
                                 {
@@ -362,16 +298,14 @@ DWORD WINAPI Server_Thread(LPVOID arg)
 
 
     //hero.id 수신
-    recvn(sock, messageBuffer, sizeof(CHero), 0);
-    hero[0] = *(CHero*)messageBuffer;
+    recvn(sock, (char*)&hero, sizeof(CHero), 0);
     keyInfo.id = hero[0].id;
 
-    // 서버에서 초기화 한 몬스터 값 수신
-    recvn(sock, (char*)&monster, sizeof(monster), 0);
 
-    MyRect = true;
+    MyDragon = true;
 
     while (1) {
+
         recvn(sock, (char*)&monster, sizeof(monster), 0);
         recvn(sock, (char*)&hero, sizeof(hero), 0);
         recvn(sock, (char*)&boss, sizeof(boss), 0);
