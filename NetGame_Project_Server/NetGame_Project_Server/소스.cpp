@@ -54,7 +54,7 @@ void err_display(char* msg)
 
 CRITICAL_SECTION cs;
 
-HANDLE hReadEvent, hOperEvent;
+//HANDLE hReadEvent, hOperEvent;
 HANDLE hThread;
 HANDLE hThread2;
 
@@ -72,11 +72,11 @@ bool attackState;
 
 int main(int argc, char* argv[])
 {
-    // 이벤트 생성
-    hReadEvent = CreateEvent(NULL, TRUE, TRUE, NULL);
-    if (hReadEvent == NULL) return 1;
-    hOperEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (hOperEvent == NULL) return 1;
+    //// 이벤트 생성
+    //hReadEvent = CreateEvent(NULL, TRUE, TRUE, NULL);
+    //if (hReadEvent == NULL) return 1;
+    //hOperEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+    //if (hOperEvent == NULL) return 1;
     int retval;
     // 윈속 초기화
     WSADATA wsa;
@@ -171,7 +171,7 @@ int main(int argc, char* argv[])
 
         hThread = CreateThread(NULL, 0, Client_Thread, (LPVOID)client_sock, 0, NULL);//HandleClient 쓰레드 실행, clientSock을 매개변수로 전달
 
-        hThread2 = CreateThread(NULL, 0, Operation_Thread, (LPVOID)client_sock, 0, NULL);
+        /*hThread2 = CreateThread(NULL, 0, Operation_Thread, (LPVOID)client_sock, 0, NULL);*/
 
     }
 
@@ -195,142 +195,131 @@ DWORD WINAPI Client_Thread(LPVOID arg)
 
     // hero.id 송신
     send(clientSock, (char*)&hero[clientCount], sizeof(CHero), 0);
-
-
+    EnterCriticalSection(&cs);
+    int StartTime = GetTickCount64();
+    int deltaTime;
+    LeaveCriticalSection(&cs);
     while (1) {
-        WaitForSingleObject(hReadEvent, INFINITE);
+        int NowTime = GetTickCount64();
+        deltaTime = NowTime - StartTime;
+        if (deltaTime >= 10) {
 
-        Sleep(16);
+            /*WaitForSingleObject(hReadEvent, INFINITE);*/
 
-        recvn(clientSock, (char*)&keyInfo, sizeof(keyInfo), 0);
+            /*Sleep(16);*/
 
-        EnterCriticalSection(&cs);
-        Client_ID = keyInfo.id;
-        leftMove = keyInfo.left;
-        rightMove = keyInfo.right;
-        upMove = keyInfo.up;
-        downMove = keyInfo.down;
-        attackState = keyInfo.space;
-        LeaveCriticalSection(&cs);
+            recvn(clientSock, (char*)&keyInfo, sizeof(keyInfo), 0);
 
-
-        send(clientSock, (char*)&monsters, sizeof(monsters), 0);
-        send(clientSock, (char*)&hero, sizeof(hero), 0);
-        send(clientSock, (char*)&boss, sizeof(boss), 0);
-
-        ResetEvent(hReadEvent);
-        SetEvent(hOperEvent);
-    }
-
-    closesocket(clientSock);//소켓을 종료한다.
-    return 0;
-}
-
-DWORD WINAPI Operation_Thread(LPVOID arg)
-{
-
-    while (true) {
-        WaitForSingleObject(hOperEvent, INFINITE);
-
-        if (rightMove == true)          // 오른 키
-        {
-            if (hero[Client_ID].x <= 360) {
-                hero[Client_ID].x += 5;
-                hero[Client_ID].rc = RECT{
-                                hero[Client_ID].x + 10
-                                ,hero[Client_ID].y + 10
-                                ,hero[Client_ID].x + 80
-                                ,hero[Client_ID].y + 80
-                };
-            }
-        }
-        if (leftMove == true)     // 왼쪽 키
-        {
-            if (hero[Client_ID].x >= 0) {
-                hero[Client_ID].x -= 5;
-                hero[Client_ID].rc = RECT{
-                                hero[Client_ID].x + 10
-                                ,hero[Client_ID].y + 10
-                                ,hero[Client_ID].x + 80
-                                ,hero[Client_ID].y + 80
-                };
-            }
-        }
-        if (upMove == true) {
-            if (hero[Client_ID].y >= 0) {
-                hero[Client_ID].y -= 5;
-                hero[Client_ID].rc = RECT{
-                                hero[Client_ID].x + 10
-                                ,hero[Client_ID].y + 10
-                                ,hero[Client_ID].x + 80
-                                ,hero[Client_ID].y + 80
-                };
-            }
-        }
-        if (downMove == true) {
-            if (hero[Client_ID].y <= 520) {
-                hero[Client_ID].y += 5;
-                hero[Client_ID].rc = RECT{
-                         hero[Client_ID].x + 10
-                         ,hero[Client_ID].y + 10
-                         ,hero[Client_ID].x + 80
-                         ,hero[Client_ID].y + 80
-                };
-            }
-        }
-        if (attackState == true)     // 스페이스 키
-        {
             EnterCriticalSection(&cs);
-            ++BulletSpawnTick;
-            if (BulletSpawnTick > 10) {
-                for (int j = 0; j < 10; j++) {
-                    if (hero[Client_ID].BulletArr[j].isFire == false)
-                    {
-                        hero[Client_ID].BulletArr[j].isFire = true;
-                        hero[Client_ID].BulletArr[j].x = hero[Client_ID].x;
-                        hero[Client_ID].BulletArr[j].y = hero[Client_ID].y;
-                        hero[Client_ID].BulletArr[j].rc = RECT{
-                            hero[Client_ID].BulletArr[j].x + 30
-                            ,hero[Client_ID].BulletArr[j].y
-                            ,hero[Client_ID].BulletArr[j].x + 60
-                            ,hero[Client_ID].BulletArr[j].y + 60
-                        };
-
-                        break;
-                    }
-                }
-                BulletSpawnTick = 0;
-            }
+            Client_ID = keyInfo.id;
+            leftMove = keyInfo.left;
+            rightMove = keyInfo.right;
+            upMove = keyInfo.up;
+            downMove = keyInfo.down;
+            attackState = keyInfo.space;
             LeaveCriticalSection(&cs);
 
-        }
-        for (int j = 0; j < bulletMax; j++)
-        {
-            if (hero[Client_ID].BulletArr[j].isFire == true)
+            if (rightMove == true)          // 오른 키
             {
-                hero[Client_ID].BulletArr[j].y -= 10;
-                hero[Client_ID].BulletArr[j].rc = RECT{
-                            hero[Client_ID].BulletArr[j].x + 30
-                            ,hero[Client_ID].BulletArr[j].y
-                            ,hero[Client_ID].BulletArr[j].x + 60
-                            ,hero[Client_ID].BulletArr[j].y + 60
-                };
-
-                if (hero[Client_ID].BulletArr[j].y < -70) {
-                    hero[Client_ID].BulletArr[j].isFire = false;
-                    hero[Client_ID].BulletArr[j].x = -100;
-                    hero[Client_ID].BulletArr[j].y = 600;
-                    hero[Client_ID].BulletArr[j].rc = RECT{
-                            hero[Client_ID].BulletArr[j].x + 30
-                            ,hero[Client_ID].BulletArr[j].y
-                            ,hero[Client_ID].BulletArr[j].x + 60
-                            ,hero[Client_ID].BulletArr[j].y + 60
+                if (hero[Client_ID].x <= 360) {
+                    hero[Client_ID].x += 5;
+                    hero[Client_ID].rc = RECT{
+                                    hero[Client_ID].x + 10
+                                    ,hero[Client_ID].y + 10
+                                    ,hero[Client_ID].x + 80
+                                    ,hero[Client_ID].y + 80
                     };
-
                 }
             }
-        }
-        {
+
+            if (leftMove == true)     // 왼쪽 키
+            {
+                if (hero[Client_ID].x >= 0) {
+                    hero[Client_ID].x -= 5;
+                    hero[Client_ID].rc = RECT{
+                                    hero[Client_ID].x + 10
+                                    ,hero[Client_ID].y + 10
+                                    ,hero[Client_ID].x + 80
+                                    ,hero[Client_ID].y + 80
+                    };
+                }
+            }
+
+            if (upMove == true) {
+                if (hero[Client_ID].y >= 0) {
+                    hero[Client_ID].y -= 5;
+                    hero[Client_ID].rc = RECT{
+                                    hero[Client_ID].x + 10
+                                    ,hero[Client_ID].y + 10
+                                    ,hero[Client_ID].x + 80
+                                    ,hero[Client_ID].y + 80
+                    };
+                }
+            }
+
+            if (downMove == true) {
+                if (hero[Client_ID].y <= 520) {
+                    hero[Client_ID].y += 5;
+                    hero[Client_ID].rc = RECT{
+                             hero[Client_ID].x + 10
+                             ,hero[Client_ID].y + 10
+                             ,hero[Client_ID].x + 80
+                             ,hero[Client_ID].y + 80
+                    };
+                }
+            }
+
+            if (attackState == true)     // 스페이스 키
+            {
+                ++BulletSpawnTick;
+                if (BulletSpawnTick > 10) {
+                    for (int j = 0; j < 10; j++) {
+                        if (hero[Client_ID].BulletArr[j].isFire == false)
+                        {
+                            hero[Client_ID].BulletArr[j].isFire = true;
+                            hero[Client_ID].BulletArr[j].x = hero[Client_ID].x;
+                            hero[Client_ID].BulletArr[j].y = hero[Client_ID].y;
+                            hero[Client_ID].BulletArr[j].rc = RECT{
+                                hero[Client_ID].BulletArr[j].x + 30
+                                ,hero[Client_ID].BulletArr[j].y
+                                ,hero[Client_ID].BulletArr[j].x + 60
+                                ,hero[Client_ID].BulletArr[j].y + 60
+                            };
+
+                            break;
+                        }
+                    }
+                    BulletSpawnTick = 0;
+                }
+            }
+
+            for (int j = 0; j < bulletMax; j++)
+            {
+                if (hero[Client_ID].BulletArr[j].isFire == true)
+                {
+                    hero[Client_ID].BulletArr[j].y -= 10;
+                    hero[Client_ID].BulletArr[j].rc = RECT{
+                                hero[Client_ID].BulletArr[j].x + 30
+                                ,hero[Client_ID].BulletArr[j].y
+                                ,hero[Client_ID].BulletArr[j].x + 60
+                                ,hero[Client_ID].BulletArr[j].y + 60
+                    };
+
+                    if (hero[Client_ID].BulletArr[j].y < -70) {
+                        hero[Client_ID].BulletArr[j].isFire = false;
+                        hero[Client_ID].BulletArr[j].x = -100;
+                        hero[Client_ID].BulletArr[j].y = 600;
+                        hero[Client_ID].BulletArr[j].rc = RECT{
+                                hero[Client_ID].BulletArr[j].x + 30
+                                ,hero[Client_ID].BulletArr[j].y
+                                ,hero[Client_ID].BulletArr[j].x + 60
+                                ,hero[Client_ID].BulletArr[j].y + 60
+                        };
+
+                    }
+                }
+            }
+
             EnterCriticalSection(&cs);
             ++MonsterSpawnTick;
             //monster spawn
@@ -342,11 +331,14 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
                 }
             }
             LeaveCriticalSection(&cs);
+
             //boss spawn
             if (MonsterWave == 10) {
                 if (BossWave == 1 && boss.isActivated == false) {
                     boss.isActivated = true;
+                    EnterCriticalSection(&cs);
                     BossWave = 0;
+                    LeaveCriticalSection(&cs);
                     BossSpawn();
                 }
             }
@@ -384,7 +376,9 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
                         ,boss.y + 200
                         };
                         if (boss.x <= 3) {
+                            EnterCriticalSection(&cs);
                             direct = 1;
+                            LeaveCriticalSection(&cs);
                         }
                     }
                     else if (direct == 1) {
@@ -396,7 +390,9 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
                         ,boss.y + 200
                         };
                         if (boss.x >= 250) {
+                            EnterCriticalSection(&cs);
                             direct = 0;
+                            LeaveCriticalSection(&cs);
                         }
                     }
 
@@ -420,7 +416,9 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
                         break;
                     }
                 }
+                EnterCriticalSection(&cs);
                 BossBulletTick = 0;
+                LeaveCriticalSection(&cs);
             }
 
 
@@ -465,7 +463,7 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
                 }
                 if (monsters[i].y >= 614) {
                     monsters[i].isActivated = false;
-                    monsters[i].x = 0;
+                    monsters[i].x = -70;
                     monsters[i].y = -70;
                     monsters[i].rc = RECT{
                             monsters[i].x
@@ -475,20 +473,90 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
                     };
                 }
             }
-        }
 
-        // ------------------------------------ //
-        // ------------------------------------ //
-        // --------------Collide--------------- //
-        // ------------------------------------ //
-        // ------------------------------------ //
-         // 총알과 몬스터의 충돌
-        for (int i = 0; i < monsterMax; ++i) {
-            for (int j = 0; j < bulletMax; ++j) {
 
-                if (IsCollide(hero[Client_ID].BulletArr[j].rc, monsters[i].rc) == true)
+            // ------------------------------------ //
+            // ------------------------------------ //
+            // --------------Collide--------------- //
+            // ------------------------------------ //
+            // ------------------------------------ //
+             // 총알과 몬스터의 충돌
+            for (int i = 0; i < monsterMax; ++i) {
+                for (int j = 0; j < bulletMax; ++j) {
+
+                    if (IsCollide(hero[Client_ID].BulletArr[j].rc, monsters[i].rc) == true)
+                    {
+                        hero[Client_ID].point += 100;
+                        hero[Client_ID].BulletArr[j].isFire = false;
+
+                        hero[Client_ID].BulletArr[j].x = -100;
+                        hero[Client_ID].BulletArr[j].y = 600;
+                        hero[Client_ID].BulletArr[j].rc = RECT{
+                               hero[Client_ID].BulletArr[j].x + 15
+                               ,hero[Client_ID].BulletArr[j].y
+                               ,hero[Client_ID].BulletArr[j].x + 60
+                               ,hero[Client_ID].BulletArr[j].y + 60
+                        };
+
+                        monsters[i].isActivated = false;
+                        monsters[i].x = -70;
+                        monsters[i].y = -70;
+                        monsters[i].rc = RECT{
+                                monsters[i].x
+                                ,monsters[i].y
+                                ,monsters[i].x + 55
+                                ,monsters[i].y + 55
+                        };
+                    }
+                }
+            }
+            // 몬스터와 플레이어 간의 충돌
+            for (int j = 0; j < monsterMax; ++j) {
+                if (IsCollide(hero[Client_ID].rc, monsters[j].rc) == true)
                 {
-                    hero[Client_ID].point += 100;
+                    hero[Client_ID].point -= 500;
+                    monsters[j].isActivated = false;
+                    monsters[j].x = -70;
+                    monsters[j].y = -70;
+                    monsters[j].rc = RECT{
+                            monsters[j].x
+                            ,monsters[j].y
+                            ,monsters[j].x + 55
+                            ,monsters[j].y + 55
+                    };
+                }
+            }
+
+            // 보스와 플레이어 간의 충돌
+            if (IsCollide(hero[Client_ID].rc, boss.rc) == true) {
+                hero[Client_ID].point -= 1000;
+                if (Client_ID == 0) {
+                    hero[Client_ID].x = 0;
+                    hero[Client_ID].y = 460;
+                    hero[Client_ID].rc = RECT{
+                        hero[Client_ID].x + 10
+                        ,hero[Client_ID].y + 10
+                        ,hero[Client_ID].x + 80
+                        ,hero[Client_ID].y + 80
+                    };
+                }
+                else if (Client_ID == 1) {
+                    hero[Client_ID].x = 350;
+                    hero[Client_ID].y = 460;
+                    hero[Client_ID].rc = RECT{
+                        hero[Client_ID].x + 10
+                        ,hero[Client_ID].y + 10
+                        ,hero[Client_ID].x + 80
+                        ,hero[Client_ID].y + 80
+                    };
+                }
+            }
+
+            // 보스와 플레이어 총알 간의 충돌
+            for (int j = 0; j < bulletMax; ++j) {
+                if (IsCollide(hero[Client_ID].BulletArr[j].rc, boss.rc) == true)
+                {
+                    hero[Client_ID].point += 500;
                     hero[Client_ID].BulletArr[j].isFire = false;
 
                     hero[Client_ID].BulletArr[j].x = -100;
@@ -500,121 +568,75 @@ DWORD WINAPI Operation_Thread(LPVOID arg)
                            ,hero[Client_ID].BulletArr[j].y + 60
                     };
 
-                    monsters[i].isActivated = false;
-                    monsters[i].x = 0;
-                    monsters[i].y = -70;
-                    monsters[i].rc = RECT{
-                            monsters[i].x
-                            ,monsters[i].y
-                            ,monsters[i].x + 55
-                            ,monsters[i].y + 55
+                    boss.hp -= 1;
+                    if (boss.hp <= 0) {
+                        if (hero[0].point > hero[1].point) {
+                            hero[0].winlose = true;
+                            hero[1].winlose = false;
+                        }
+                        else if (hero[0].point < hero[1].point) {
+                            hero[0].winlose = false;
+                            hero[1].winlose = true;
+                        }
+                        boss.dead = true;
+                        BossWave = 0;
+                        boss.isActivated = false;
+                        boss.x = 120;
+                        boss.y = -250;
+                        boss.rc = RECT{
+                            boss.x
+                            ,boss.y
+                            ,boss.x + 200
+                            ,boss.y + 200
+                        };
+                    }
+
+                }
+            }
+
+            // 보스 총알과 플레이어 간의 충돌
+            for (int j = 0; j < 5; ++j) {
+                if (IsCollide(hero[Client_ID].rc, boss.BossBulletArr[j].rc) == true)
+                {
+                    hero[Client_ID].point -= 500;
+                    boss.BossBulletArr[j].isFire = false;
+                    boss.BossBulletArr[j].x = -100;
+                    boss.BossBulletArr[j].y = -100;
+                    boss.BossBulletArr[j].rc = RECT{
+                                boss.BossBulletArr[j].x
+                                ,boss.BossBulletArr[j].y
+                                ,boss.BossBulletArr[j].x + 40
+                                ,boss.BossBulletArr[j].y + 40
                     };
                 }
             }
+
+
+            send(clientSock, (char*)&monsters, sizeof(monsters), 0);
+            send(clientSock, (char*)&hero, sizeof(hero), 0);
+            send(clientSock, (char*)&boss, sizeof(boss), 0);
+
+            /*       ResetEvent(hReadEvent);
+                   SetEvent(hOperEvent);*/
+
         }
-        // 몬스터와 플레이어 간의 충돌
-        for (int j = 0; j < monsterMax; ++j) {
-            if (IsCollide(hero[Client_ID].rc, monsters[j].rc) == true)
-            {
-                hero[Client_ID].point -= 500;
-                monsters[j].isActivated = false;
-                monsters[j].x = 0;
-                monsters[j].y = -70;
-                monsters[j].rc = RECT{
-                        monsters[j].x
-                        ,monsters[j].y
-                        ,monsters[j].x + 55
-                        ,monsters[j].y + 55
-                };
-            }
-        }
+        StartTime = NowTime;
+    }
 
-        // 보스와 플레이어 간의 충돌
-        if (IsCollide(hero[Client_ID].rc, boss.rc) == true) {
-            hero[Client_ID].point -= 1000;
-            if (Client_ID == 0) {
-                hero[Client_ID].x = 0;
-                hero[Client_ID].y = 460;
-                hero[Client_ID].rc = RECT{
-                    hero[Client_ID].x + 10
-                    ,hero[Client_ID].y + 10
-                    ,hero[Client_ID].x + 80
-                    ,hero[Client_ID].y + 80
-                };
-            }
-            else if (Client_ID == 1) {
-                hero[Client_ID].x = 350;
-                hero[Client_ID].y = 460;
-                hero[Client_ID].rc = RECT{
-                    hero[Client_ID].x + 10
-                    ,hero[Client_ID].y + 10
-                    ,hero[Client_ID].x + 80
-                    ,hero[Client_ID].y + 80
-                };
-            }
-        }
+    closesocket(clientSock);//소켓을 종료한다.
+    return 0;
+}
 
-        // 보스와 플레이어 총알 간의 충돌
-        for (int j = 0; j < bulletMax; ++j) {
-            if (IsCollide(hero[Client_ID].BulletArr[j].rc, boss.rc) == true)
-            {
-                hero[Client_ID].point += 500;
-                hero[Client_ID].BulletArr[j].isFire = false;
+DWORD WINAPI Operation_Thread(LPVOID arg)
+{
 
-                hero[Client_ID].BulletArr[j].x = -100;
-                hero[Client_ID].BulletArr[j].y = 600;
-                hero[Client_ID].BulletArr[j].rc = RECT{
-                       hero[Client_ID].BulletArr[j].x + 15
-                       ,hero[Client_ID].BulletArr[j].y
-                       ,hero[Client_ID].BulletArr[j].x + 60
-                       ,hero[Client_ID].BulletArr[j].y + 60
-                };
+    while (true) {
+        /*WaitForSingleObject(hOperEvent, INFINITE);*/
 
-                boss.hp -= 1;
-                if (boss.hp <= 0) {
-                    if (hero[0].point > hero[1].point) {
-                        hero[0].winlose = true;
-                        hero[1].winlose = false;
-                    }
-                    else if (hero[0].point < hero[1].point) {
-                        hero[0].winlose = false;
-                        hero[1].winlose = true;
-                    }
-                    boss.dead = true;
-                    BossWave = 0;
-                    boss.isActivated = false;
-                    boss.x = 120;
-                    boss.y = -250;
-                    boss.rc = RECT{
-                        boss.x
-                        ,boss.y
-                        ,boss.x + 200
-                        ,boss.y + 200
-                    };
-                }
 
-            }
-        }
 
-        // 보스 총알과 플레이어 간의 충돌
-        for (int j = 0; j < 5; ++j) {
-            if (IsCollide(hero[Client_ID].rc, boss.BossBulletArr[j].rc) == true)
-            {
-                hero[Client_ID].point -= 500;
-                boss.BossBulletArr[j].isFire = false;
-                boss.BossBulletArr[j].x = -100;
-                boss.BossBulletArr[j].y = -100;
-                boss.BossBulletArr[j].rc = RECT{
-                            boss.BossBulletArr[j].x
-                            ,boss.BossBulletArr[j].y
-                            ,boss.BossBulletArr[j].x + 40
-                            ,boss.BossBulletArr[j].y + 40
-                };
-            }
-        }
-
-        ResetEvent(hOperEvent);
-        SetEvent(hReadEvent);
+        /*ResetEvent(hOperEvent);
+        SetEvent(hReadEvent);*/
     }
     return 0;
 }

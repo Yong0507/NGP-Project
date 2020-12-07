@@ -195,34 +195,30 @@ void OnDraw(HWND hWnd)
             //BG
             imgBackGround.Draw(memDC, 0, 0, 460, 614);
 
-            if (hero[0].connect == true && hero[1].connect == true) {
-                for (int i = 0; i < monsterMax; ++i) {
-                    if (monster[i].isActivated == true) {
-                        monsterimg[i].Draw(memDC, monster[i].x, monster[i].y, monster[i].size, monster[i].size);
+            //몬스터그리기
+            for (int i = 0; i < monsterMax; ++i) {
+                if (monster[i].isActivated == true) {
+                    monsterimg[i].Draw(memDC, monster[i].x, monster[i].y, monster[i].size, monster[i].size);
+                }
+            }
+
+            //보스 총알
+            if (boss.isActivated == true) {
+                bossimg.Draw(memDC, boss.x, boss.y, 200, 200);
+                for (int i = 0; i < 5; ++i) {
+                    if (boss.BossBulletArr[i].isFire == true) {
+                        bossbullet[i].Draw(memDC, boss.BossBulletArr[i].x, boss.BossBulletArr[i].y, 40, 40);
                     }
                 }
             }
 
-            if (hero[0].connect == true && hero[1].connect == true) {
-                if (boss.isActivated == true) {
-                    bossimg.Draw(memDC, boss.x, boss.y, 200, 200);
-                    for (int i = 0; i < 5; ++i) {
-                        if (boss.BossBulletArr[i].isFire == true) {
-                            bossbullet[i].Draw(memDC, boss.BossBulletArr[i].x, boss.BossBulletArr[i].y, 40, 40);
-                        }
-                    }
-                }
+            //점수 출력
+            sprintf(str, "1P : %d", hero[0].point);
+            TextOut(memDC, 10, 10, str, lstrlen(str));
 
-            }
+            sprintf(str, "2P : %d", hero[1].point);
+            TextOut(memDC, 10, 30, str, lstrlen(str));
 
-            if (hero[0].connect == true) {
-                sprintf(str, "1P : %d", hero[0].point);
-                TextOut(memDC, 10, 10, str, lstrlen(str));
-            }
-            if (hero[1].connect == true) {
-                sprintf(str, "2P : %d", hero[1].point);
-                TextOut(memDC, 10, 30, str, lstrlen(str));
-            }
 
             // hero draw
             if (true == MyDragon)
@@ -332,7 +328,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
         //// 백 버퍼 생성
         imgBackBuff.Create(Window_Size_X, Window_Size_Y, 24);
-        SetTimer(hWnd, 0, 30, NULL);
+        SetTimer(hWnd, 0, 10, NULL);
 
         break;
 
