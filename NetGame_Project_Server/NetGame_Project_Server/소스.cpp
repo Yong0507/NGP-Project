@@ -171,8 +171,6 @@ int main(int argc, char* argv[])
 
         hThread = CreateThread(NULL, 0, Client_Thread, (LPVOID)client_sock, 0, NULL);//HandleClient 쓰레드 실행, clientSock을 매개변수로 전달
 
-        /*hThread2 = CreateThread(NULL, 0, Operation_Thread, (LPVOID)client_sock, 0, NULL);*/
-
     }
 
     // 임계역역 삭제
@@ -201,7 +199,9 @@ DWORD WINAPI Client_Thread(LPVOID arg)
     LeaveCriticalSection(&cs);
     while (1) {
         int NowTime = GetTickCount64();
+        EnterCriticalSection(&cs);
         deltaTime = NowTime - StartTime;
+        LeaveCriticalSection(&cs);
         if (deltaTime >= 10) {
 
             /*WaitForSingleObject(hReadEvent, INFINITE);*/
@@ -620,7 +620,9 @@ DWORD WINAPI Client_Thread(LPVOID arg)
                    SetEvent(hOperEvent);*/
 
         }
+        EnterCriticalSection(&cs);
         StartTime = NowTime;
+        LeaveCriticalSection(&cs);
     }
 
     closesocket(clientSock);//소켓을 종료한다.
