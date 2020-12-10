@@ -193,23 +193,20 @@ DWORD WINAPI Client_Thread(LPVOID arg)
 
     // hero.id 송신
     send(clientSock, (char*)&hero[clientCount], sizeof(CHero), 0);
-    EnterCriticalSection(&cs);
+
     int StartTime = GetTickCount64();
     int deltaTime;
-    LeaveCriticalSection(&cs);
+
     while (1) {
         int NowTime = GetTickCount64();
-        EnterCriticalSection(&cs);
+
         deltaTime = NowTime - StartTime;
-        LeaveCriticalSection(&cs);
+        
         if (deltaTime >= 10) {
-
-            /*WaitForSingleObject(hReadEvent, INFINITE);*/
-
-            /*Sleep(16);*/
 
             recvn(clientSock, (char*)&keyInfo, sizeof(keyInfo), 0);
 
+            // 안전하게 넘어온 값을 저장하기 위해 임계영역 설정
             EnterCriticalSection(&cs);
             Client_ID = keyInfo.id;
             leftMove = keyInfo.left;
@@ -620,26 +617,10 @@ DWORD WINAPI Client_Thread(LPVOID arg)
                    SetEvent(hOperEvent);*/
 
         }
-        EnterCriticalSection(&cs);
         StartTime = NowTime;
-        LeaveCriticalSection(&cs);
     }
 
     closesocket(clientSock);//소켓을 종료한다.
-    return 0;
-}
-
-DWORD WINAPI Operation_Thread(LPVOID arg)
-{
-
-    while (true) {
-        /*WaitForSingleObject(hOperEvent, INFINITE);*/
-
-
-
-        /*ResetEvent(hOperEvent);
-        SetEvent(hReadEvent);*/
-    }
     return 0;
 }
 
